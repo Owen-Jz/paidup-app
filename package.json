@@ -11,6 +11,7 @@
     "test": "node --test lib/reconcile.test.ts lib/verify.test.ts lib/resolver.test.ts lib/export.test.ts lib/auth.test.ts lib/anomaly.test.ts lib/summary.test.ts lib/ai.test.ts lib/security-headers.test.ts lib/ratelimit.test.ts lib/validate.test.ts lib/store.test.ts lib/audit.test.ts lib/receipt.test.ts"
   },
   "dependencies": {
+    "gsap": "^3.15.0",
     "next": "14.2.5",
     "qrcode": "^1.5.4",
     "react": "18.3.1",
