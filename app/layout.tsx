@@ -1,9 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "PaidUp — every payment, on the right invoice",
   description: "Account-per-invoice reconciliation on Nomba. Money in auto-reconciles. Zero manual matching.",
+};
+
+// Mobile-first: render at device width and allow pinch-zoom (never disable it — a11y).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#FBF7EF",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

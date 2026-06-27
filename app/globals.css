@@ -437,12 +437,121 @@ table.inv tr:hover td{background:var(--paper-2)}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
 
-@media(max-width:980px){.hero{grid-template-columns:1fr;gap:36px}.loop{grid-template-columns:1fr 1fr}.ob-wrap{grid-template-columns:1fr}.ob-aside{display:none}}
-/* Reserve a right gutter on the app pages so the fixed Simulate panel never overlaps the toolbar /
-   rail actions (U5). Only when the panel is actually shown (>1080px); panel is hidden below that. */
+/* ============================================================
+   RESPONSIVE — usable & well-composed on every screen, mobile-first intent
+   "why" section grids (.why-split / .why-cards) collapse here instead of inline.
+   ============================================================ */
+.why-split{display:grid;grid-template-columns:1fr 1fr;gap:54px;align-items:center}
+.why-cards{grid-template-columns:1fr 1fr;border-top:1px solid var(--ink)}
+
+/* Reserve a right gutter on app pages so the fixed Simulate panel never overlaps content (U5).
+   Only when the panel actually shows (>1080px); it's hidden below that. */
 @media(min-width:1081px){.app-shell main{padding-right:336px}}
-@media(max-width:1080px){.grid2{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.kpi:nth-child(2){border-right:none}.sim{display:none}}
-@media(max-width:620px){.kpis{grid-template-columns:1fr}.toolbar{flex-wrap:wrap}.toolbar input.search{width:100%}.toolbar .spacer{display:none}.modal{width:calc(100vw - 32px)}}
+
+/* ---- large tablet / small laptop ---- */
+@media(max-width:1080px){
+  .grid2{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .kpi:nth-child(2){border-right:none}
+  .sim{display:none}
+}
+
+/* ---- tablet ---- */
+@media(max-width:980px){
+  .hero{grid-template-columns:1fr;gap:36px;padding-top:24px}
+  .loop{grid-template-columns:1fr 1fr}
+  .why-split{grid-template-columns:1fr;gap:30px}
+  .ba{grid-template-columns:1fr}
+  .ba-col.before{border-right:none;border-bottom:1px solid var(--line)}
+  .ob-wrap{grid-template-columns:1fr}
+  .ob-aside{display:none}
+  .section{padding:54px 24px}
+}
+
+/* ---- phone ---- */
+@media(max-width:640px){
+  main{padding:20px 16px 80px}
+  .h1{font-size:26px}
+
+  /* KPI strip stacks into rows */
+  .kpis{grid-template-columns:1fr}
+  .kpi{border-right:none;border-bottom:1px solid var(--line)}
+  .kpi:last-child{border-bottom:none}
+
+  /* App header → two rows: brand+status on top, full-width tab bar below */
+  header.app{padding:10px 14px;gap:9px;flex-wrap:wrap}
+  .logo{font-size:18px}
+  .logo small{display:none}
+  header.app .nav{order:5;flex-basis:100%;margin-left:0;gap:5px}
+  header.app .nav a{flex:1;text-align:center;padding:9px 10px}
+  .env-pill{display:none}
+  .ai-pill{margin-right:0}
+  header.app .who{font-size:0;gap:0}        /* keep the avatar, drop the name to save width */
+  header.app .who .av{font-size:12px}
+
+  /* Landing header → logo + auth buttons only */
+  .site-head{padding:14px 16px;gap:9px}
+  .site-head .nav-links{display:none}
+  .btn-line{padding:8px 13px;font-size:13px}
+
+  /* Hero */
+  .hero{padding:18px 16px}
+  .hero h1{font-size:clamp(32px,8.5vw,42px)}
+  .hero p.lede{font-size:16px;margin-top:20px}
+  .hero .cta{flex-wrap:wrap;gap:12px;margin-top:26px}
+  .hero-stats{gap:20px;flex-wrap:wrap;margin-top:34px;padding-top:22px}
+  .receipt{transform:none}                  /* no rotate → no horizontal overflow */
+
+  /* Sections / loop single column */
+  .section{padding:42px 16px}
+  .section-title{font-size:26px}
+  .loop,.why-cards{grid-template-columns:1fr}
+  .loop .step{border-right:none;border-bottom:1px solid var(--line);padding:20px 18px 22px}
+  .loop .step:last-child{border-bottom:none}
+  .site-foot .in{flex-direction:column;gap:6px;text-align:center;padding:22px 16px}
+
+  /* Live feed rows */
+  .event{padding:13px 14px;gap:11px}
+
+  /* Invoice toolbar + table */
+  .toolbar .ghost{flex:1 1 auto;text-align:center;justify-content:center}
+  table.inv th,table.inv td{padding:11px 13px}
+
+  /* Invoice drawer → full-bleed sheet */
+  .drawer{width:100%;max-width:100%;border-left:none;padding:22px 18px 36px}
+  .dr-figs{grid-template-columns:1fr;gap:0;padding:8px 0}
+  .dr-figs > div{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line)}
+  .dr-figs > div:last-child{border-bottom:none}
+  .dr-figs b{margin-top:0}
+  .dr-share{flex-wrap:wrap}
+
+  /* Onboarding + processing (had a fixed 460px width → overflowed) */
+  .ob-main{padding:26px 16px}
+  .ob-card .field-row{grid-template-columns:1fr;gap:0}
+  .proc{width:100%}
+
+  /* Printable receipt */
+  .receipt-doc{padding:24px 18px}
+  .rcpt-top{flex-wrap:wrap;gap:10px}
+  .rcpt-parties{flex-direction:column;gap:16px}
+  .rcpt-meta{text-align:left}
+}
+
+/* existing 620 tweaks (kept) */
+@media(max-width:620px){
+  .toolbar{flex-wrap:wrap}
+  .toolbar input.search{width:100%}
+  .toolbar .spacer{display:none}
+  .modal{width:calc(100vw - 28px)}
+}
+
+/* ---- small phones ---- */
+@media(max-width:380px){
+  .h1{font-size:23px}
+  .pay-acct .acctno{font-size:19px}
+  .dr-acct{flex-wrap:wrap;gap:12px}
+  .ai-pill{font-size:9.5px;padding:5px 8px}
+}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
 /* Respect users who ask for less motion — neutralize decorative animation + transitions (a11y). */

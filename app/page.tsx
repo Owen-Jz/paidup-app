@@ -82,7 +82,7 @@ export default function Landing() {
       </section>
 
       <section className="section" id="why" style={{ paddingTop: 0 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 54, alignItems: "center" }}>
+        <div className="why-split">
           <div>
             <span className="kicker">Why PaidUp</span>
             <h2 className="section-title" style={{ marginTop: 8 }}>Nomba ships the rails.<br />We ship the ledger.</h2>
@@ -92,7 +92,7 @@ export default function Landing() {
               under-payments, over-payments, duplicates and misdirected transfers, all handled.
             </p>
           </div>
-          <div className="loop" style={{ gridTemplateColumns: "1fr 1fr", borderTop: "1px solid var(--ink)" }}>
+          <div className="loop why-cards">
             <div className="step"><h4>Under-paid</h4><p>Tracks a running balance and keeps the invoice open until it’s settled.</p></div>
             <div className="step" style={{ borderRight: "none" }}><h4>Over-paid</h4><p>Flags the surplus and refunds it back to the payer in one tap.</p></div>
             <div className="step" style={{ borderRight: "1px solid var(--line)" }}><h4>Duplicate</h4><p>Idempotent on transaction id — a retried webhook never double-counts.</p></div>
