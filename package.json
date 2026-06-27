@@ -1,0 +1,27 @@
+{
+  "name": "paidup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SME Per-Invoice reconciliation on Nomba — hackathon MVP (Cresiolabs)",
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "test:e2e": "next build && playwright test",
+    "test": "node --test lib/reconcile.test.ts lib/verify.test.ts lib/resolver.test.ts lib/export.test.ts lib/auth.test.ts lib/anomaly.test.ts lib/summary.test.ts lib/ai.test.ts lib/security-headers.test.ts lib/ratelimit.test.ts lib/validate.test.ts lib/store.test.ts lib/audit.test.ts lib/receipt.test.ts"
+  },
+  "dependencies": {
+    "next": "14.2.5",
+    "qrcode": "^1.5.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "20.14.10",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "typescript": "5.5.3"
+  }
+}

@@ -1,0 +1,71 @@
+# PaidUp — Security & Reliability Note
+
+How PaidUp keeps money-state correct and the surface trustworthy. Paired with the architecture
+diagram in `README.md`. The two scored axes here are **webhook authenticity** and **reconciliation
+integrity** — both are treated as money-correctness problems, not afterthoughts.
+
+## Webhook authenticity (the money entry point)
+- **HMAC-SHA256 over the 9-field colon-joined string** `event_type:requestId:userId:walletId:
+  transactionId:type:time:responseCode:nomba-timestamp` (base64, case-insensitive compare) — the exact
+  scheme from Nomba's docs, **not** an HMAC of the raw body. `lib/verify.ts` reproduces the **docs test
+  vector exactly** (unit-tested), so we know the implementation is right, not just plausible.
+- **Constant-time comparison** of signatures (no early-exit timing leak).
+- **Timestamp freshness** — events older than ±5 min are rejected (`isTimestampFresh`), blunting replay.
+- **Fail CLOSED in production** — with `NODE_ENV=production` and no `NOMBA_WEBHOOK_SECRET`, the webhook
+  returns `503` (never silently accepts unsigned events). Local demos are dev-open; a hosted demo without
+  a real secret must *explicitly* opt in via `ALLOW_UNSIGNED_WEBHOOKS=1`.
+- **Input validation at the boundary** — missing `transactionId` or a non-finite/≤0 amount → `400`; the
+  reconcile core also throws on invalid inputs, so a malformed webhook can never poison the ledger as `NaN`.
+
+## Reconciliation integrity (the ledger)
+- **Idempotent processing** — dedupe on `transactionId`, and the dedupe marker is committed **only after**
+  the ledger mutation + event succeed. A mid-flight error returns non-2xx so Nomba's retry is reprocessed,
+  never silently dropped or double-counted. (Nomba retries 5× with backoff.)
+- **Reversals** — `payment_reversal` un-reconciles: the clawed-back amount is subtracted and status
+  re-derived; reversing an already-reversed payment is a no-op.
+- **Don't trust webhooks alone** — "Sync from Nomba" requeries the credits Nomba actually recorded
+  (`/v1/transactions/virtual`) and re-runs them through the *same* dedupe+reconcile path, repairing the
+  ledger if a webhook was ever missed. Safe to run anytime (idempotent).
+- **Durable state** — the ledger + processed-tx set are file-backed (`.data/ledger.json`), so a restart
+  can't replay-double-credit. (Serverless needs Postgres — see README.)
+- **Anomaly flags** — large overpayments, possible duplicate transfers, and repeated unmatched senders are
+  surfaced for a human before money is treated as settled.
+
+## Money movement (payouts)
+- Refunds/bounces go through **lookup-then-transfer** (`/v1/transfers/bank/lookup` → `/v2/transfers/bank`)
+  with a **stable idempotency key** derived from the originating transaction (never `Date.now()`), so a
+  retried payout is deduped by Nomba rather than sending twice.
+
+## Access control
+- Opt-in **shared-password gate** (`APP_PASSWORD`) over `/app` + all `/api` routes. Session cookie is a
+  SHA-256 token *derived* from the password (the password is never stored), `httpOnly` + `sameSite=lax` +
+  `secure` in production, constant-time compared. **The Nomba webhook is never gated** (it authenticates
+  with its own HMAC). Unset = open public demo.
+
+## AI safety (the moat that can't break the money path)
+- **AI never moves money and never decides reconciliation.** The MiniMax features (unmatched resolver,
+  anomaly explanations, reconciliation brief) only *suggest* and *explain*; a human still confirms every
+  assign/refund, and the deterministic engine remains the source of truth.
+- **Grounded output.** The resolver may only choose from the open-invoice list and its pick is re-validated
+  against live ledger state before we trust it (a hallucinated/closed id → deterministic fallback). The brief
+  is generated over *pre-computed* figures, so the model cannot invent amounts.
+- **Fails safe, never closed.** `lib/ai.ts` returns `null` on a missing key, HTTP error, non-zero MiniMax
+  status, 8s timeout, or unparseable JSON. Every caller then falls back to its deterministic path — a
+  missing/rate-limited key degrades quality, never availability. AI calls are on-demand (never on the poll).
+- **Key handling.** `MINIMAX_API_KEY` is read from env (gitignored), never committed, and entirely optional.
+
+## Secret handling
+- All credentials live in `.env.local` / host env (gitignored). **LIVE keys move real money and are kept
+  out of code.** `.env.local.example` documents every variable with no secrets.
+
+## Known limits / threat model
+- File store is single-instance; move to Postgres before a serverless deploy.
+- The auth gate is a single shared password (MVP scope), not per-user accounts.
+- Money is held as guarded Naira floats (round-2 + kobo tolerance, tested); integer-kobo is the
+  post-hackathon hardening step.
+
+## Verification
+`npm test` → 58 unit tests (reconcile incl. reversal, HMAC docs vector, resolver + AI-fallback, export, auth,
+anomaly + AI-explain, summary + AI-fallback).
+`npm run build` green. Webhook fail-closed, refund `live:true`, auth 401/200, and reversal flows verified
+live against `sandbox.nomba.com`.
