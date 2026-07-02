@@ -32,21 +32,29 @@ export async function POST(req: NextRequest) {
   if (action === "bounce") {
     const ev = getEvent(transactionId);
     if (!ev || ev.outcome !== "quarantine") return NextResponse.json({ error: "not a quarantined payment" }, { status: 400 });
+    const demo = process.env.NODE_ENV !== "production" || process.env.DEMO_MODE === "1"; // mirrors simulate/refund
     let live = false;
-    if (nombaConfigured() && ev.senderAccountNumber && ev.senderBankCode) {
-      try {
-        await lookupBankAccount(ev.senderAccountNumber, ev.senderBankCode);
-        await transferToBank({
-          amount: ev.amount,
-          accountNumber: ev.senderAccountNumber,
-          accountName: ev.customer,
-          bankCode: ev.senderBankCode,
-          narration: "Returned: no matching invoice",
-          idempotencyKey: `bounce_${transactionId}`,
-        });
-        live = true;
-      } catch {
-        /* fall back to recorded bounce */
+    // Same rule as refunds: in PRODUCTION we must really send the money back, or leave the payment
+    // quarantined — never a phantom bounce. In an explicit DEMO we record the bounce (live:false)
+    // without requiring a sandbox transfer that can't settle / has no payer details.
+    if (nombaConfigured()) {
+      if (ev.senderAccountNumber && ev.senderBankCode) {
+        try {
+          await lookupBankAccount(ev.senderAccountNumber, ev.senderBankCode);
+          await transferToBank({
+            amount: ev.amount,
+            accountNumber: ev.senderAccountNumber,
+            accountName: ev.customer,
+            bankCode: ev.senderBankCode,
+            narration: "Returned: no matching invoice",
+            idempotencyKey: `bounce_${transactionId}`,
+          });
+          live = true;
+        } catch (e) {
+          if (!demo) return NextResponse.json({ error: "bounce transfer did not settle — payment left quarantined", detail: String((e as Error)?.message ?? e) }, { status: 502 });
+        }
+      } else if (!demo) {
+        return NextResponse.json({ error: "cannot bounce: sender bank details unavailable" }, { status: 422 });
       }
     }
     const ok = markQuarantineBounced(transactionId);
