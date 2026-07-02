@@ -5,7 +5,7 @@ import { useDashboard, Chip, SimPanel, CountUp } from "@/components/dashboard";
 import { NGN, eventIcon, timeAgo, shortName } from "@/lib/format";
 
 export default function LivePage() {
-  const { invoices, events, kpis, flashId, loading, error, simulate, sync, reverseLast } = useDashboard();
+  const { invoices, events, quarantine, kpis, flashId, loading, error, simulate, sync, reverseLast } = useDashboard();
   const [brief, setBrief] = useState<{ text: string; source: string } | null>(null);
   const [briefing, setBriefing] = useState(false);
 
@@ -24,8 +24,18 @@ export default function LivePage() {
   const evBg: Record<string, string> = {
     paid: "var(--paid-bg)", partial: "var(--partial-bg)", overpaid: "var(--over-bg)",
     quarantine: "var(--attn-bg)", duplicate: "var(--await-bg)", refunded: "var(--paid-bg)",
+    reversed: "var(--attn-bg)",
   };
   const outstanding = invoices.filter((i) => i.paid < i.amount).sort((a, b) => (b.amount - b.paid) - (a.amount - a.paid)).slice(0, 4);
+
+  // Status composition for the reconciliation breakdown card.
+  const bd = { paid: { n: 0, amt: 0 }, partial: { n: 0, amt: 0 }, overpaid: { n: 0, amt: 0 }, awaiting: { n: 0, amt: 0 } };
+  for (const i of invoices) {
+    const k = (i.status === "paid" || i.status === "partial" || i.status === "overpaid") ? i.status : "awaiting";
+    bd[k].n++; bd[k].amt += i.amount;
+  }
+  const totalInv = invoices.length || 1;
+  const bpct = (n: number) => `${(n / totalInv) * 100}%`;
 
   // Screen-reader announcement for the newest reconciliation. The string only changes when a new top
   // event arrives, so aria-live fires once per real payment (not on every 2s poll).
@@ -36,13 +46,23 @@ export default function LivePage() {
 
   return (
     <main>
-      <div>
-        <h1 className="h1">Live collections</h1>
-        <p className="sub">Money lands → matched by virtual-account reference → reconciled automatically. Nothing here is typed by hand.</p>
+      <div className="page-head">
+        <div>
+          <h1 className="h1">Live collections</h1>
+          <p className="sub">Money lands → matched by virtual-account reference → reconciled automatically. Nothing here is typed by hand.</p>
+        </div>
+        <span className="page-live"><i />Reconciling live</span>
       </div>
 
       {error && <div className="banner err" role="alert">⚠ Lost connection to the ledger — retrying…</div>}
       <div className="sr-only" role="status" aria-live="polite">{liveMsg}</div>
+
+      <div className="kpis">
+        <div className="kpi accent"><div className="lab">Collected</div><div className="val naira">{NGN(kpis.collected)}</div><div className="delta">{kpis.rate}% of invoiced</div></div>
+        <div className="kpi"><div className="lab">Invoiced</div><div className="val naira">{NGN(kpis.invoiced)}</div><div className="delta">{invoices.length} invoices</div></div>
+        <div className="kpi"><div className="lab">Outstanding</div><div className="val naira" style={{ color: "var(--partial)" }}>{NGN(kpis.outstanding)}</div><div className="delta">{invoices.filter((i) => i.paid < i.amount).length} open</div></div>
+        <div className="kpi"><div className="lab">Needs attention</div><div className="val" style={{ color: "var(--attn)" }}>{kpis.attention}</div><div className="delta">{quarantine.length} unmatched</div></div>
+      </div>
 
       <div className="grid2">
         <div className="feed">
@@ -88,6 +108,22 @@ export default function LivePage() {
             <div className="outrow"><span style={{ color: "var(--muted)" }}>Invoiced</span><b className="naira">{NGN(kpis.invoiced)}</b></div>
             <div className="outrow"><span style={{ color: "var(--muted)" }}>Outstanding</span><b className="naira" style={{ color: "var(--partial)" }}>{NGN(kpis.outstanding)}</b></div>
             <div className="outrow"><span style={{ color: "var(--muted)" }}>Needs attention</span><b style={{ color: "var(--attn)" }}>{kpis.attention}</b></div>
+          </div>
+          <div className="railcard">
+            <h4>Reconciliation breakdown</h4>
+            <div className="bd-bar" role="img" aria-label="Invoice status composition">
+              <i className="paid" style={{ width: bpct(bd.paid.n) }} />
+              <i className="partial" style={{ width: bpct(bd.partial.n) }} />
+              <i className="over" style={{ width: bpct(bd.overpaid.n) }} />
+              <i className="await" style={{ width: bpct(bd.awaiting.n) }} />
+            </div>
+            <ul className="bd-list">
+              <li><span className="bd-dot paid" /><span>Paid</span><span className="bd-amt">{NGN(bd.paid.amt)}</span><b>{bd.paid.n}</b></li>
+              <li><span className="bd-dot partial" /><span>Partial</span><span className="bd-amt">{NGN(bd.partial.amt)}</span><b>{bd.partial.n}</b></li>
+              <li><span className="bd-dot over" /><span>Overpaid</span><span className="bd-amt">{NGN(bd.overpaid.amt)}</span><b>{bd.overpaid.n}</b></li>
+              <li><span className="bd-dot await" /><span>Awaiting</span><span className="bd-amt">{NGN(bd.awaiting.amt)}</span><b>{bd.awaiting.n}</b></li>
+              <li><span className="bd-dot attn" /><span>Unmatched</span><span className="bd-amt">needs review</span><b>{quarantine.length}</b></li>
+            </ul>
           </div>
           <div className={`railcard brief${briefing ? " loading" : ""}`}>
             <h4>✨ AI reconciliation brief</h4>

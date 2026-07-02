@@ -19,6 +19,12 @@ export function LandingMotion() {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     let ctx: { revert: () => void } | null = null;
 
+    // Sticky header hairline appears once you leave the very top (runs regardless of reduced-motion).
+    const head = document.querySelector<HTMLElement>("[data-head]");
+    const onScroll = () => head?.classList.toggle("stuck", window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
     (async () => {
       const { gsap } = await import("gsap");
       const { ScrollTrigger } = await import("gsap/ScrollTrigger");
@@ -98,10 +104,25 @@ export function LandingMotion() {
             }
           );
         });
+
+        // 5. Trust-strip figures count up from zero the first time they scroll into view.
+        gsap.utils.toArray<HTMLElement>("[data-count]").forEach((el) => {
+          const target = Number(el.dataset.count || "0");
+          const suffix = el.dataset.suffix || "";
+          const obj = { v: 0 };
+          gsap.to(obj, {
+            v: target, duration: 1.4, ease: "power2.out",
+            scrollTrigger: { trigger: el, start: "top 92%", once: true },
+            onUpdate: () => { el.textContent = Math.round(obj.v) + suffix; },
+          });
+        });
       });
     })();
 
-    return () => ctx?.revert();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      ctx?.revert();
+    };
   }, []);
 
   return null;

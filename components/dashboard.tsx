@@ -48,19 +48,21 @@ export function useDashboard() {
   }, [refresh]);
 
   const simulate = useCallback(async (invoiceRef: string | null, amount: number) => {
-    await fetch("/api/simulate", {
+    const r = await fetch("/api/simulate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ invoiceRef, amount }),
     });
     await refresh();
+    return r.ok;
   }, [refresh]);
 
   const reverseLast = useCallback(async (invoiceRef: string) => {
-    await fetch("/api/simulate", {
+    const r = await fetch("/api/simulate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "reversal", invoiceRef }),
     });
     await refresh();
+    return r.ok;
   }, [refresh]);
 
   const refund = useCallback(async (invoiceId: string) => {
@@ -139,8 +141,8 @@ export function Chip({ status }: { status: PaymentOutcome | Invoice["status"] })
 
 export function SimPanel({ invoices, simulate, sync, reverseLast }: {
   invoices: Invoice[];
-  simulate: (ref: string | null, amt: number) => void;
-  reverseLast?: (ref: string) => void;
+  simulate: (ref: string | null, amt: number) => void | Promise<boolean | void>;
+  reverseLast?: (ref: string) => void | Promise<boolean | void>;
   sync?: () => Promise<{ configured: boolean; applied?: number; duplicates?: number; scanned?: number; message?: string } | null>;
 }) {
   const [ref, setRef] = useState<string>("");
@@ -148,6 +150,8 @@ export function SimPanel({ invoices, simulate, sync, reverseLast }: {
   const [collapsed, setCollapsed] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [simMsg, setSimMsg] = useState<string | null>(null);
+  const SIM_DISABLED = "Simulation is disabled in this build (set DEMO_MODE=1 to enable it).";
 
   useEffect(() => {
     if (!ref && invoices.length) setRef(invoices[0].id);
@@ -164,10 +168,12 @@ export function SimPanel({ invoices, simulate, sync, reverseLast }: {
     if (kind === "over") setAmount(String(remaining + Math.round(inv.amount * 0.1)));
   };
 
-  const fire = () => {
+  const fire = async () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
-    simulate(ref === "__none" ? null : ref, amt);
+    setSimMsg(null);
+    const ok = await simulate(ref === "__none" ? null : ref, amt);
+    if (ok === false) setSimMsg(SIM_DISABLED);
   };
 
   const runSync = async () => {
@@ -205,12 +211,14 @@ export function SimPanel({ invoices, simulate, sync, reverseLast }: {
           <button onClick={() => quick("unmatched")}>⚠ Wrong ref</button>
         </div>
         <button className="btn go" onClick={fire}>↳ Send mock webhook</button>
-        {reverseLast && ref && ref !== "__none" && (
-          <button className="ghost" style={{ width: "100%", marginTop: 8 }} onClick={() => reverseLast(ref)}>
+        {reverseLast && ref && ref !== "__none" &&
+          invoices.find((i) => i.id === ref)?.payments?.some((p) => p.outcome !== "reversed") && (
+          <button className="ghost" style={{ width: "100%", marginTop: 8 }} onClick={async () => { setSimMsg(null); const ok = await reverseLast(ref); if (ok === false) setSimMsg(SIM_DISABLED); }}>
             ⤺ Reverse last payment (clawback)
           </button>
         )}
         <div className="hint">Runs the real reconcile path: matched by <span className="mono">aliasAccountReference</span> → classified. Watch the feed + invoices update.</div>
+        {simMsg && <div className="sync-msg mono">{simMsg}</div>}
         {sync && (
           <div className="sync-row">
             <button className="btn sync" onClick={runSync} disabled={syncing}>
