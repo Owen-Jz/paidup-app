@@ -79,7 +79,7 @@ engine and **a missing/rate-limited key never breaks the demo**. AI calls are on
 poll), so they don't re-bill. Set `MINIMAX_API_KEY` to enable; leave blank to run fully deterministic. The
 AI seam is injectable, so the resolver/anomaly/summary fallbacks are unit-tested offline (no network/key).
 
-## What's wired & verified  (`npm test` → 58 unit tests; `npm run build` green)
+## What's wired & verified  (`npm test` → 105 unit tests; `npm run build` green)
 - ✅ **Reconcile engine:** exact→paid, under→partial (accumulates), over→overpaid (refundable surplus),
   **payment_reversal→un-reconcile** (clawback re-derives status), kobo-tolerant, **rejects NaN/invalid**
   (no ledger corruption). Pure + unit-tested incl. the HMAC docs vector.
@@ -89,7 +89,9 @@ AI seam is injectable, so the resolver/anomaly/summary fallbacks are unit-tested
 - ✅ **Unmatched handling:** quarantine queue with a **smart suggested-match** (one-click Accept) + manual
   **assign-to-invoice** or **bounce-to-sender** (`/v2/transfers/bank`).
 - ✅ **Per-invoice statement drawer** (history, running balance, VA + copy) + **one-tap overpayment refund**
-  (verified `live:true` against sandbox).
+  via `/v2/transfers/bank` (lookup → transfer, stable idempotency key). **Note:** Nomba **transfer/refund
+  settlement is production-only** — the sandbox does not settle transfers, so this is verified at the call
+  path, not at settlement.
 - ✅ **Reconciliation backstop:** "Sync from Nomba" requeries recorded credits and re-runs them through the
   same dedupe+reconcile path (idempotent) — never relies on webhooks alone.
 - ✅ **Anomaly/fraud flags:** large overpayment, possible duplicate transfer, repeated unmatched sender.
@@ -99,7 +101,7 @@ AI seam is injectable, so the resolver/anomaly/summary fallbacks are unit-tested
   **deterministic fallback** so a missing/rate-limited key never breaks the demo. See "AI moat" above.
 - ✅ **Security:** opt-in `APP_PASSWORD` gate (httpOnly session cookie, constant-time compare; webhook never gated).
 - ✅ Durable file-backed ledger (`.data/ledger.json`) so restarts don't replay-double-credit; `/api/simulate` gated out of production.
-- ✅ Live token issue + VA create/list + refund + requery against `sandbox.nomba.com`.
+- ✅ Live token issue + VA create/list + requery against `sandbox.nomba.com` (refund call-path exercised in sandbox; transfer/refund **settlement is production-only**).
 
 See **SECURITY.md** for the full security & reliability note (the submission requirement).
 
@@ -110,8 +112,9 @@ See **SECURITY.md** for the full security & reliability note (the submission req
 ## Known limits / next steps
 - **File-backed store** (`lib/store.ts`, `.data/ledger.json`) survives restarts on a single instance (Render)
   but not serverless (each invocation is isolated). Swap for Postgres/Redis before a Vercel deploy.
-- **VA creation is mocked by default** so the demo isn't blocked by the **sandbox 2-VA cap**. Flip `useNomba:true`
-  in the New Invoice request to create a real sandbox VA (scoped to the sub-account).
+- **VA creation defaults to a real sandbox VA with a mock fallback.** The old 2-VA sandbox cap was
+  **removed for hackathon accounts (2026-06-30)**, so you can create VAs freely; each sandbox VA still
+  accepts ≤ ₦150. The mock fallback stays as the safety net so the demo never depends on a live API call.
 - **Webhook secret** — set `NOMBA_WEBHOOK_SECRET` to the dashboard signature key to enforce verification
   (blank = dev-open; **production fails closed**). Then expose the app with a tunnel (cloudflared/ngrok) and
   submit the public `/api/webhook` URL + sub-account ID to Nomba's form.

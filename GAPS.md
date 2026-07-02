@@ -127,31 +127,32 @@ requery replay, audit CSV export, anomaly flags, reversal handling).
 
 # 🏁 Final summary — 20-iteration AI-moat loop (iters 11–20)
 
-**Verification at stop:** `npm run build` green · `npm test` **67/67** · repo smoke test green · AI flows
+**Verification at stop:** `npm run build` green · `npm test` **105/105** · repo smoke test green · AI flows
 **live-verified vs MiniMax-Text-01** (resolver positive match + no-hallucination grounding, anomaly
-explanation, reconciliation brief) and the reconcile/refund/auth/reversal flows live vs `sandbox.nomba.com`.
+explanation, reconciliation brief) and the reconcile/auth/reversal flows live vs `sandbox.nomba.com` (the
+refund/transfer call-path is exercised but settlement is **production-only**).
 
 ### What this loop added on top of the first 10
 The 10-cap loop hardened security, reconciliation depth, UX and tests (Security 4.5→~9, Technical 6→~9,
 UX 6→~9, Nomba 7→~9). This loop did two things: **(1) shipped a real AI moat** (MiniMax, everywhere behind
 a deterministic fallback), and **(2) fixed a submission-fatal P0** — foundational source files were untracked.
 
-### Shipped this loop (9 commits, each green + scoped to `paidup/`)
-1. **AI unmatched-payment resolver** (MiniMax, grounded, human-confirms) — `d49c8d1a`
-2. **Repo P0 fix:** 13 untracked foundational files committed (repo now builds from a clean clone) — `79cdb0f2`
-3. **AI anomaly explanations** (per-flag recommended action) — `f8fd85dd`
-4. **AI reconciliation brief** (NL digest over computed figures) — `16dd32e0`
-5. **AI surface documented** (env.example + README "AI moat" + SECURITY "AI safety") — `91fe1010`
-6. **AI status pill** (visible graceful degradation) — `cf0c067f`
-7. **Direct `lib/ai.ts` fetch-fallback tests** (the safety proof) — `79728de6`
-8. **Animation/UX polish** (feed rise-in, AI shimmer, prefers-reduced-motion) — `81c207da`
-9. **DEMO.md** (timed 2–3 min demo script) — `0e8ca11b`
+### Shipped this loop (9 changes, each green + scoped to `paidup/`)
+1. **AI unmatched-payment resolver** (MiniMax, grounded, human-confirms)
+2. **Repo P0 fix:** 13 untracked foundational files committed (repo now builds from a clean clone)
+3. **AI anomaly explanations** (per-flag recommended action)
+4. **AI reconciliation brief** (NL digest over computed figures)
+5. **AI surface documented** (env.example + README "AI moat" + SECURITY "AI safety")
+6. **AI status pill** (visible graceful degradation)
+7. **Direct `lib/ai.ts` fetch-fallback tests** (the safety proof)
+8. **Animation/UX polish** (feed rise-in, AI shimmer, prefers-reduced-motion)
+9. **DEMO.md** (timed 2–3 min demo script)
 
 ### Per-criterion standing (after this loop; self-assessed)
 | Criterion | Now | What this loop moved |
 |---|---|---|
 | Security & Reliability | **~9.5** | AI **fails safe, never closed** (null on every failure → deterministic path), grounded output can't invent money, AI client directly tested; webhook fail-closed + dedupe unchanged |
-| Technical Execution | **~9.5** | AI seam injectable + unit-tested end to end (67 tests, +22 this loop); **repo now actually builds from a clean clone** (was not) |
+| Technical Execution | **~9.5** | AI seam injectable + unit-tested end to end (105 tests); **repo now actually builds from a clean clone** (was not) |
 | Product UX & Clarity | **~9.5** | AI resolver "Ask AI", anomaly "Explain", reconciliation brief, AI-live pill, feed animation; DEMO.md for the video |
 | Nomba Integration Depth | **~9** | AI sharpens the *unmatched-handling* sub-bar specifically (the hardest reconciliation case) on top of the existing requery/refund/reversal breadth |
 | Problem Relevance | **~9** | The AI brief + resolver speak directly to the SME owner's real question ("where's my money, what needs me") in plain English |
@@ -257,7 +258,7 @@ Verified by `npm test` (15 pass), `npm run build` (green), and live curl/screens
 - **#3 NaN amount** → `isValidAmount` guard in `classify()` + webhook boundary; invalid → 400. *(verified.)*
 - **#4 restart double-credit** → durable file-backed store (`.data/ledger.json`), dedupe committed after success. *(serverless still needs Postgres — noted.)*
 - **#5 per-invoice statement** → row-click drawer: history timeline, running balance, VA + copy.
-- **#6 overpayment refund** → `/api/refund` → lookup → `/v2/transfers/bank`; button on overpaid rows. *(verified `live:true` vs sandbox.)*
+- **#6 overpayment refund** → `/api/refund` → lookup → `/v2/transfers/bank`; button on overpaid rows. *(call path exercised; refund/transfer settlement is **production-only** — Nomba sandbox doesn't settle transfers.)*
 - **#7 tests** → `lib/reconcile.test.ts` + `lib/verify.test.ts` (15 cases incl. docs HMAC vector); false comment removed.
 - **#10 attention filter** → KPI delta now "N overpaid · N unmatched"; quarantine surfaced in Attention view.
 - **#11 VA on create** → success state with big account number + Copy + share line.
@@ -273,6 +274,41 @@ Verified by `npm test` (15 pass), `npm run build` (green), and live curl/screens
 - **#26 onboarding theater** → "Connect Nomba" relabelled as honest sandbox preview; no real-looking secrets hardcoded.
 
 **Still open (recommend next):** — (see loop log; #21 pruned).
+
+---
+
+## 🏦 Virtual-account lifecycle policy (decided 2026-07-01)
+
+**Decision: PaidUp uses STATIC (non-expiring) virtual accounts, scoped one-per-customer, not one-per-invoice.**
+Rationale traced from the Nomba reference (`NOMBA-API-REFERENCE.md` §Virtual Accounts):
+
+- **Static vs dynamic** — a VA is *static* (permanent NUBAN) when `expiryDate` is omitted, *dynamic*
+  (time-boxed) when it's set. The invoice route (`app/api/invoices/route.ts:42`) calls
+  `createVirtualAccount` **without** `expiryDate` → all invoice VAs are static today. This is intentional
+  and stays.
+- **Why static** — (1) a customer who pays a month late still lands the money (no expired-account bounce);
+  (2) it removes the reused-saved-beneficiary failure mode (the number a customer saved never dies);
+  (3) "expiry" lives in *our* ledger as an invoice status (overdue / written-off), which we control —
+  not on the bank rail, whose expired-inbound behavior is undocumented.
+- **Scope one static VA per repeat customer, not per invoice** — bounds the live-account count to the
+  *active customer base* (not transaction volume). `accountRef` is the reconciliation key tying the VA to
+  the customer; invoices are attributed within the customer ledger. Use *dynamic* expiring VAs only for
+  genuine one-off buyers who will never return.
+- **Lifecycle management** — static VAs are permanent and do **not** auto-recycle. Reclaim churned
+  customers with **Suspend** (`PUT /v1/accounts/suspend/{accountId}`) / **Expire**, and audit the live set
+  with **Filter/list** (`virtual-accounts/*`). Only suspend/expire **after** the customer's balance is
+  settled and a grace period has passed, so a late payer never hits a dead account.
+
+### Open items (both UNVERIFIABLE in sandbox — must confirm against a live/production Nomba account)
+- **[VA-1] Real per-merchant static-VA ceiling.** The verified reference documents **no production VA cap**
+  ("No VA cap in production"); the only ever-documented cap was the sandbox 2-VA limit (now removed for
+  hackathon accounts). An anecdotal "~30" limit has been raised but is **not in the reference** — do **not**
+  design around it. Confirm the true production ceiling with Nomba before relying on per-customer static VAs
+  at scale.
+- **[VA-2] Expired/suspended-VA inbound behavior.** The reference does not state what happens to a transfer
+  sent to an *expired* or *suspended* static VA — the payer's bank may reverse it, or the transfer may fail
+  at initiation. Sandbox has **no expiry support**, so this cannot be tested there. Verify in production
+  before enabling any Suspend/Expire flow, and until then keep the grace-period rule above.
 
 ---
 
@@ -347,7 +383,8 @@ Verified by `npm test` (15 pass), `npm run build` (green), and live curl/screens
 # 🏁 Final summary — 10-iteration hardening loop
 
 **Verification at stop:** `npm run build` green · `npm test` **45/45** · repo smoke test green ·
-key flows live-verified against `sandbox.nomba.com` (refund, auth 401/200, reversal, assign).
+key flows live-verified against `sandbox.nomba.com` (auth 401/200, reversal, assign; the refund/transfer
+call path is exercised but settlement is **production-only** in Nomba's sandbox).
 
 ### Per-criterion standing (start → projected after loop; self-assessed)
 | Criterion | Start | Now | What moved it |
@@ -358,16 +395,16 @@ key flows live-verified against `sandbox.nomba.com` (refund, auth 401/200, rever
 | Nomba Integration Depth | 7 | **~9** | `payment_success` **+ `payment_reversal`**, requery (`/v1/transactions/virtual`), refund + bounce (`/v2/transfers/bank`), VA create/list — verified HMAC vector |
 | Problem Relevance | 8 | **~8.5** | Landing wound/persona/differentiator (prior pass); product now demonstrably solves the full reconcile lifecycle |
 
-### Shipped this loop (9 feature/doc commits, each green + scoped to `paidup/`)
-1. Reconciliation backstop — **Sync from Nomba** requery (`e456ab05`)
-2. **Quarantine resolve** — assign-to-invoice / bounce-to-sender (`5c40da20`)
-3. **Smart unmatched-payment resolver** — suggested match (`2334da37`)
-4. **Audit-grade CSV export** — ledger + statement (`691e3ba5`)
-5. **Opt-in auth gate** — middleware + session cookie (`8b8f4e3f`)
-6. **Anomaly / fraud flags** (`2e0df02b`)
-7. **payment_reversal handling** — clawback un-reconcile (`4082dddb`)
-8. **Accessibility + responsive** — dialog focus-trap, scrollable table (`7211466d`)
-9. **Docs** — README refresh + **SECURITY.md** (`f886557b`)
+### Shipped this loop (9 feature/doc changes, each green + scoped to `paidup/`)
+1. Reconciliation backstop — **Sync from Nomba** requery
+2. **Quarantine resolve** — assign-to-invoice / bounce-to-sender
+3. **Smart unmatched-payment resolver** — suggested match
+4. **Audit-grade CSV export** — ledger + statement
+5. **Opt-in auth gate** — middleware + session cookie
+6. **Anomaly / fraud flags**
+7. **payment_reversal handling** — clawback un-reconcile
+8. **Accessibility + responsive** — dialog focus-trap, scrollable table
+9. **Docs** — README refresh + **SECURITY.md**
 
 ### Moat features now in the build (a typical entry won't have these)
 Smart suggested-match resolver · one-tap overpayment refund + unmatched bounce · idempotent webhook +

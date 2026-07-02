@@ -40,7 +40,7 @@ Open the **⚡ Simulate payment** panel and fire three payments so the engine sh
 
 **1:20 — Under/overpayment handling + one-tap refund (`/app/invoices`)**  *(~25s)*
 Click the overpaid invoice → the **statement drawer**: payment history, running balance, the VA number.
-Hit **Refund surplus** → returns the overpayment via `/v2/transfers/bank` (verified live vs sandbox).
+Hit **Refund surplus** → returns the overpayment via `/v2/transfers/bank` (the lookup→transfer call path; note Nomba settles transfers in production only, not sandbox).
 > "The surplus goes back to the payer in one tap — lookup-then-transfer with a stable idempotency key."
 
 **1:45 — The hard case: unmatched money + AI resolver**  *(~30s)*  ← the moat
@@ -63,7 +63,7 @@ Tap the **✨ AI LIVE** pill / mention **fail-closed webhook HMAC** and the **an
 **2:35 — Close**  *(~15s)*
 > "PaidUp turns Nomba's raw virtual-account primitive into a managed reconciliation ledger — exact,
 > partial, overpaid, reversed and unmatched all handled, with AI that sharpens the work but can never
-> break the money path. 67 unit tests, HMAC verified against Nomba's own vector, fails closed in production."
+> break the money path. 105 unit tests, HMAC verified against Nomba's own vector, fails closed in production."
 
 ## One-line pitch (for the form)
 > Per-invoice Nomba virtual accounts + a reconciliation engine that auto-matches every transfer
@@ -74,4 +74,4 @@ Tap the **✨ AI LIVE** pill / mention **fail-closed webhook HMAC** and the **an
 - Feed not updating → the dashboard polls `/api/events` every 2s; check the dev server is up on :3100.
 - AI button shows "AI not configured" → `MINIMAX_API_KEY` isn't set; the deterministic fallback still works.
 - Want a clean slate mid-demo → `rm .data/ledger.json` and reload (re-seeds).
-- Reset everything verified: `npm test` (67) · `npm run build` · `node ../smoke-test/smoke-test.mjs`.
+- Reset everything verified: `npm test` (105) · `npm run build` · `node ../smoke-test/smoke-test.mjs`.

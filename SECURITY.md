@@ -65,7 +65,9 @@ integrity** — both are treated as money-correctness problems, not afterthought
   post-hackathon hardening step.
 
 ## Verification
-`npm test` → 58 unit tests (reconcile incl. reversal, HMAC docs vector, resolver + AI-fallback, export, auth,
-anomaly + AI-explain, summary + AI-fallback).
-`npm run build` green. Webhook fail-closed, refund `live:true`, auth 401/200, and reversal flows verified
-live against `sandbox.nomba.com`.
+`npm test` → 105 unit tests (reconcile incl. reversal, HMAC/signature vector, resolver + AI-fallback, export,
+auth, anomaly + AI-explain, summary + AI-fallback, plus ai, validate, store, ratelimit, security-headers,
+audit, receipt).
+`npm run build` green. Webhook fail-closed, auth 401/200, and reversal flows verified live against
+`sandbox.nomba.com`. The refund/transfer path (`/v2/transfers/bank`) is exercised end-to-end, but **actual
+refund settlement is production-only** — Nomba's sandbox does not settle transfers/refunds.
