@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useDashboard, Chip, SimPanel, CountUp } from "@/components/dashboard";
 import { NGN, eventIcon, timeAgo, shortName } from "@/lib/format";
 
@@ -61,7 +62,7 @@ export default function LivePage() {
         <div className="kpi accent"><div className="lab">Collected</div><div className="val naira">{NGN(kpis.collected)}</div><div className="delta">{kpis.rate}% of invoiced</div></div>
         <div className="kpi"><div className="lab">Invoiced</div><div className="val naira">{NGN(kpis.invoiced)}</div><div className="delta">{invoices.length} invoices</div></div>
         <div className="kpi"><div className="lab">Outstanding</div><div className="val naira" style={{ color: "var(--partial)" }}>{NGN(kpis.outstanding)}</div><div className="delta">{invoices.filter((i) => i.paid < i.amount).length} open</div></div>
-        <div className="kpi"><div className="lab">Needs attention</div><div className="val" style={{ color: "var(--attn)" }}>{kpis.attention}</div><div className="delta">{quarantine.length} unmatched</div></div>
+        <Link href="/app/invoices?filter=attn" className="kpi" style={{ textDecoration: "none", cursor: "pointer" }} aria-label={`Needs attention: ${quarantine.length} unmatched — review`}><div className="lab">Needs attention</div><div className="val" style={{ color: "var(--attn)" }}>{kpis.attention}</div><div className="delta">{quarantine.length} unmatched · review →</div></Link>
       </div>
 
       <div className="grid2">
@@ -78,7 +79,9 @@ export default function LivePage() {
               <div className="ic" style={{ background: evBg[e.outcome] }}>{eventIcon(e.outcome)}</div>
               <div>
                 <div className="who-line">{e.customer} <span style={{ color: "var(--faint)", fontWeight: 500 }}>→ {e.invoiceId ?? "no match"}</span></div>
-                <div className="meta">{e.bankName} · <span className="mono">{e.narration}</span></div>
+                <div className="meta">{e.bankName} · <span className="mono">{e.narration}</span>
+                  {e.outcome === "quarantine" && <Link href="/app/invoices?filter=attn" style={{ color: "var(--attn)", fontWeight: 600, textDecoration: "none", marginLeft: 6 }}>· resolve →</Link>}
+                </div>
               </div>
               <div className="amt">{NGN(e.amount)} <Chip status={e.outcome} /><small>{timeAgo(e.time)}</small></div>
             </div>
@@ -122,7 +125,7 @@ export default function LivePage() {
               <li><span className="bd-dot partial" /><span>Partial</span><span className="bd-amt">{NGN(bd.partial.amt)}</span><b>{bd.partial.n}</b></li>
               <li><span className="bd-dot over" /><span>Overpaid</span><span className="bd-amt">{NGN(bd.overpaid.amt)}</span><b>{bd.overpaid.n}</b></li>
               <li><span className="bd-dot await" /><span>Awaiting</span><span className="bd-amt">{NGN(bd.awaiting.amt)}</span><b>{bd.awaiting.n}</b></li>
-              <li><span className="bd-dot attn" /><span>Unmatched</span><span className="bd-amt">needs review</span><b>{quarantine.length}</b></li>
+              <li><span className="bd-dot attn" /><span>Unmatched</span><span className="bd-amt"><Link href="/app/invoices?filter=attn" style={{ color: "var(--attn)", textDecoration: "none" }}>review →</Link></span><b>{quarantine.length}</b></li>
             </ul>
           </div>
           <div className={`railcard brief${briefing ? " loading" : ""}`}>

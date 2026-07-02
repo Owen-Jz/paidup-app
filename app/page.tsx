@@ -62,8 +62,8 @@ export default function Landing() {
             <span>Powered by <b>Nomba</b> virtual accounts · 9-field HMAC verified · audit-grade ledger</span>
           </div>
           <div className="lp-trust-stats">
-            <div><b data-count="100" data-suffix="%">100%</b><span>auto-matched</span></div>
-            <div><b>0</b><span>manual entries</span></div>
+            <div><b>Every</b><span>transfer matched or flagged</span></div>
+            <div><b>Audit</b><span>-grade ledger + CSV</span></div>
             <div><b data-count="60" data-suffix="s">60s</b><span>to first invoice</span></div>
           </div>
         </div>
