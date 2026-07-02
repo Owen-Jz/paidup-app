@@ -24,6 +24,9 @@ function recordAudit(s: StoreShape, type: string, detail: string, time: string):
 }
 
 const EVENTS_CAP = 200;
+// The merchant using PaidUp (single-tenant MVP). This is the beneficiary a payer sees on the pay
+// page and the name the dedicated virtual accounts are held under — NOT the payer's own name.
+export const BUSINESS_NAME = process.env.BUSINESS_NAME || "Cresiolabs";
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "ledger.json");
 const g = globalThis as unknown as { __paidup?: StoreShape };
@@ -37,7 +40,7 @@ function seed(): StoreShape {
   ): Invoice => ({
     id, customer, description, amount, paid, status,
     createdAt: iso(180), dueLabel: "Due in 5d",
-    acctNumber, acctName: `${customer.split(" ")[0]}/PaidUp`, bankName: "Nombank MFB",
+    acctNumber, acctName: `${BUSINESS_NAME}/PaidUp`, bankName: "Nombank MFB",
     payments: [], payToken: `tok_${id.replace(/-/g, "").toLowerCase()}`, // stable demo link for seeds
   });
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getInvoiceByToken } from "@/lib/store";
+import { getInvoiceByToken, BUSINESS_NAME } from "@/lib/store";
 import { qrSvg, payInstruction } from "@/lib/qr";
 import { NGN } from "@/lib/format";
 import { CopyButton } from "./CopyButton";
@@ -43,9 +43,9 @@ export default async function PayPage({ params }: { params: { token: string } })
       <div className="paycard">
         <div className="pay-brand"><span className="mark">P</span> PaidUp</div>
 
-        <p className="pay-kicker">Payment request</p>
-        <h1 className="pay-h1">{inv.customer}</h1>
-        <p className="pay-desc">{inv.description} · <span className="mono">{inv.id}</span></p>
+        <p className="pay-kicker">Payment request from</p>
+        <h1 className="pay-h1">{BUSINESS_NAME}</h1>
+        <p className="pay-desc">Billed to {inv.customer} · {inv.description} · <span className="mono">{inv.id}</span></p>
 
         {isPaid ? (
           <div className="pay-settled" role="status">

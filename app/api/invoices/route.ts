@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createInvoice, listInvoices, nextInvoiceRef } from "@/lib/store";
+import { createInvoice, listInvoices, nextInvoiceRef, BUSINESS_NAME } from "@/lib/store";
 import { createVirtualAccount, nombaConfigured } from "@/lib/nomba";
 import { parseJsonBody, reqString, optString, posAmount } from "@/lib/validate";
 
@@ -29,17 +29,18 @@ export async function POST(req: NextRequest) {
   const ref = nextInvoiceRef();
 
   // Try to mint a REAL sandbox virtual account; fall back to a mock NUBAN if Nomba is
-  // unconfigured or the sandbox 2-VA cap is hit, so the demo never breaks. Pass useNomba:false to force mock.
+  // unconfigured or the call fails, so the demo never breaks. Pass useNomba:false to force mock.
+  // The VA is held under the merchant's business name (the beneficiary the payer sees), not the payer's.
   let va = {
     acctNumber: String(3000000000 + Math.floor(Math.random() * 999999999)).slice(0, 10),
-    acctName: `${customer.split(" ")[0]}/PaidUp`,
+    acctName: `${BUSINESS_NAME}/PaidUp`,
     bankName: "Nombank MFB",
   };
   let live = false;
 
   if (useNomba && nombaConfigured()) {
     try {
-      const created = await createVirtualAccount({ accountRef: ref, accountName: customer });
+      const created = await createVirtualAccount({ accountRef: ref, accountName: BUSINESS_NAME });
       va = { acctNumber: created.acctNumber, acctName: created.acctName, bankName: created.bankName };
       live = true;
     } catch {
