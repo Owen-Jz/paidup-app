@@ -12,3 +12,14 @@ next-env.d.ts
 
 .vercel
 .gstack/
+
+# Internal / off-product working artifacts — never ship to the public submission repo
+/slack-export
+/scripts/export-slack.mjs
+/MONDAY-QUESTIONS.md
+/BUILD-PLAN.md
+/IDS-SUBMISSION.md
+/NOMBA-NOTES.md
+/POLISH.md
+/.agents/
+/skills-lock.json
