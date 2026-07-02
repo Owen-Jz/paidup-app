@@ -11,6 +11,12 @@ type Filter = "all" | "open" | "paid" | "attn";
 export default function InvoicesPage() {
   const { invoices, quarantine, anomalies, kpis, flashId, loading, error, simulate, reverseLast, refresh, refund, sync, resolveQuarantine, bounceQuarantine } = useDashboard();
   const [filter, setFilter] = useState<Filter>("all");
+  // Allow deep-linking to a tab (e.g. the live feed's "Needs attention" → ?filter=attn).
+  // Read from the URL on mount only, so it doesn't force this page out of static generation.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("filter");
+    if (p === "attn" || p === "open" || p === "paid" || p === "all") setFilter(p);
+  }, []);
   const [q, setQ] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -243,8 +249,12 @@ function QuarantineRow({ event, invoices, onAssign, onBounce }: {
   // Default the picker to the best guess when present.
   const [target, setTarget] = useState<string>(suggestion?.invoiceId ?? open[0]?.id ?? "");
   const [busy, setBusy] = useState<"assign" | "bounce" | null>(null);
+  // Once the operator picks a target themselves, the 2s poll must never override it —
+  // that would fight the human-in-the-loop override the product is scored on.
+  const userPicked = useRef(false);
 
   useEffect(() => {
+    if (userPicked.current) return;
     if (suggestion?.invoiceId) setTarget(suggestion.invoiceId);
     else if (!target && open.length) setTarget(open[0].id);
   }, [suggestion?.invoiceId, open, target]);
@@ -300,7 +310,7 @@ function QuarantineRow({ event, invoices, onAssign, onBounce }: {
       </div>
       <div className="naira qamt">{NGN(event.amount)}</div>
       <div className="qactions">
-        <select value={target} onChange={(e) => setTarget(e.target.value)} disabled={!open.length || busy !== null}>
+        <select value={target} onChange={(e) => { userPicked.current = true; setTarget(e.target.value); }} disabled={!open.length || busy !== null}>
           {open.length === 0 && <option value="">No open invoices</option>}
           {open.map((i) => <option key={i.id} value={i.id}>{i.id} · {shortName(i.customer)}</option>)}
         </select>
