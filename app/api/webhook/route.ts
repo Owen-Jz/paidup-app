@@ -53,6 +53,10 @@ export async function POST(req: NextRequest) {
   }
 
   const c = body.data?.customer ?? {};
+  // UNIT: transactionAmount is NAIRA (major units), not kobo — verified against NOMBA-API-REFERENCE.md
+  // (docs show decimals like 5000.00 and "up to ₦150"). Invoice amounts are entered in naira too, so
+  // classify() compares like-for-like. If a live sandbox webhook ever shows a 100x figure, THAT is the
+  // signal the unit is kobo — do the integer-kobo refactor (GAPS #21) before trusting live numbers.
   const amount = Number(t.transactionAmount);
   if (!t.transactionId || !isValidAmount(amount)) {
     return NextResponse.json({ ok: false, error: "missing transactionId or invalid amount" }, { status: 400 });

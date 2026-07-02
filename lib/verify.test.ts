@@ -34,10 +34,23 @@ test("verifyNombaSignature rejects a forged/wrong signature", () => {
   assert.equal(verifyNombaSignature(BODY, null, SECRET, TS), false);
 });
 
-test("verifyNombaSignature rejects a tampered amount-bearing payload", () => {
+test("verifyNombaSignature rejects tampering of a SIGNED field (transactionId)", () => {
   const tampered = JSON.parse(JSON.stringify(BODY));
   tampered.data.transaction.transactionId = "API-VACT_TRA-FORGED";
   assert.equal(verifyNombaSignature(tampered, EXPECTED, SECRET, TS), false);
+});
+
+// HONESTY: Nomba's signature covers only 9 fields (see verify.ts). transactionAmount and
+// aliasAccountReference — the amount and the invoice a payment maps to — are NOT among them, so
+// tampering them does NOT invalidate the signature. This test documents that real limitation; it is
+// why the ledger cross-checks credits against Nomba via the requery/sync backstop rather than
+// trusting the webhook body alone. (Do not "fix" this by asserting false — that would be a lie.)
+test("signature does NOT cover transactionAmount / aliasAccountReference (documented gap)", () => {
+  const withMoneyFields = JSON.parse(JSON.stringify(BODY));
+  withMoneyFields.data.transaction.transactionAmount = 999999;
+  withMoneyFields.data.transaction.aliasAccountReference = "INV-FORGED";
+  // Still validates, because those fields are outside the signed set.
+  assert.equal(verifyNombaSignature(withMoneyFields, EXPECTED, SECRET, TS), true);
 });
 
 test("responseCode 'null' is normalised to empty before signing", () => {
