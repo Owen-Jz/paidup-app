@@ -6,7 +6,7 @@ process.env.PAIDUP_DISABLE_PERSIST = "1";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyPayment, reversePayment } from "./store.ts";
+import { applyPayment, reversePayment, listQuarantine } from "./store.ts";
 import type { Invoice } from "./types.ts";
 
 type StoreShape = {
@@ -55,4 +55,16 @@ test("unmatched alias is quarantined, never lost or misapplied", () => {
   const res = applyPayment({ transactionId: "tx_q", aliasAccountReference: "INV-NOPE", amount: 5000, sender: "Ghost" });
   assert.equal(res.outcome, "quarantine");
   assert.equal(res.invoiceId, null);
+});
+
+test("an unresolved quarantine survives the 200-event feed cap (unmatched money is never evicted)", () => {
+  fixture();
+  applyPayment({ transactionId: "tx_quar", aliasAccountReference: "INV-NOPE", amount: 5000, sender: "Ghost" });
+  // Flood the feed well past EVENTS_CAP (200) with matched part-payments.
+  for (let i = 0; i < 260; i++) {
+    applyPayment({ transactionId: `tx_flood_${i}`, aliasAccountReference: "INV-T", amount: 10, sender: "Test Co" });
+  }
+  const quar = listQuarantine();
+  assert.equal(quar.length, 1, "the unmatched payment must still be present after 260 newer events");
+  assert.equal(quar[0].id, "tx_quar");
 });

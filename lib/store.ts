@@ -23,6 +23,22 @@ function recordAudit(s: StoreShape, type: string, detail: string, time: string):
   s.audit.push(appendEntry(s.audit, type, detail, time));
 }
 
+/**
+ * Cap the feed to EVENTS_CAP — but NEVER evict an UNRESOLVED quarantine. Unmatched money is a
+ * ledger liability, not feed chrome: it must survive until it's assigned or bounced (both of which
+ * rewrite its outcome away from "quarantine", making it evictable again). Events are newest-first.
+ */
+function capEvents(s: StoreShape): void {
+  if (s.events.length <= EVENTS_CAP) return;
+  const kept: FeedEvent[] = [];
+  let n = 0;
+  for (const e of s.events) {
+    if (n < EVENTS_CAP) { kept.push(e); n++; }
+    else if (e.outcome === "quarantine") kept.push(e); // preserve unmatched money beyond the cap
+  }
+  s.events = kept;
+}
+
 const EVENTS_CAP = 200;
 // The merchant using PaidUp (single-tenant MVP). This is the beneficiary a payer sees on the pay
 // page and the name the dedicated virtual accounts are held under — NOT the payer's own name.
@@ -93,32 +109,43 @@ function seed(): StoreShape {
 }
 
 function load(): StoreShape | null {
+  if (!fs.existsSync(DATA_FILE)) return null; // first run → seed a fresh ledger (expected)
+  let raw: { invoices: Invoice[]; events?: FeedEvent[]; seenTx?: string[]; seq?: number; audit?: AuditEntry[] };
   try {
-    if (!fs.existsSync(DATA_FILE)) return null;
-    const raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    return {
-      invoices: new Map((raw.invoices as Invoice[]).map((i) => [i.id, i])),
-      events: raw.events ?? [],
-      seenTx: new Set(raw.seenTx ?? []),
-      seq: raw.seq ?? 1,
-      audit: raw.audit ?? [],
-    };
+    raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
   } catch {
-    return null; // corrupt/unreadable -> reseed
+    // The file EXISTS but won't parse. Do NOT silently reseed — that would blow away real invoices
+    // AND the seenTx dedupe set, reopening the door to double-crediting Nomba's webhook retries.
+    // Back the bad file up (so nothing is lost) and fail loud so the operator restores it deliberately.
+    const backup = `${DATA_FILE}.corrupt-${Date.now()}`;
+    try { fs.renameSync(DATA_FILE, backup); } catch { /* best-effort */ }
+    throw new Error(`Ledger at ${DATA_FILE} is corrupt; backed up to ${backup}. Refusing to reseed over real data — restore the backup or delete it to reset.`);
   }
+  return {
+    invoices: new Map((raw.invoices as Invoice[]).map((i) => [i.id, i])),
+    events: raw.events ?? [],
+    seenTx: new Set(raw.seenTx ?? []),
+    seq: raw.seq ?? 1,
+    audit: raw.audit ?? [],
+  };
 }
 
 function persist(s: StoreShape): void {
   if (process.env.PAIDUP_DISABLE_PERSIST === "1") return; // unit tests: never touch the dev ledger
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify({
+    // Atomic write: serialise to a temp file, then rename over the ledger. rename() is atomic on a
+    // single volume, so a crash/power-loss mid-write leaves EITHER the intact old file OR the intact
+    // new one — never a truncated JSON that would fail to parse and (previously) trigger a reseed.
+    const tmp = `${DATA_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({
       invoices: [...s.invoices.values()],
       events: s.events,
       seenTx: [...s.seenTx],
       seq: s.seq,
       audit: s.audit,
     }));
+    fs.renameSync(tmp, DATA_FILE);
   } catch {
     /* read-only fs (serverless) — stay in-memory; see GAPS.md #4 */
   }
@@ -248,7 +275,7 @@ export function applyPayment(p: IncomingPayment): ApplyResult {
   }
 
   s.events.unshift(event);
-  if (s.events.length > EVENTS_CAP) s.events.length = EVENTS_CAP;
+  capEvents(s);
   s.seenTx.add(p.transactionId); // commit dedupe only after success
   recordAudit(s, `payment.${outcome}`, `${p.transactionId} ${invoiceId ?? "unmatched"} ${p.amount}`, time);
   persist(s);
@@ -277,7 +304,7 @@ export function reversePayment(originalTransactionId: string, time?: string): Ap
     p.outcome = "reversed";
     const event = mkReversalEvent(inv, p, when);
     s.events.unshift(event);
-    if (s.events.length > EVENTS_CAP) s.events.length = EVENTS_CAP;
+    capEvents(s);
     recordAudit(s, "payment.reversed", `${originalTransactionId} ${inv.id} ${p.amount}`, when);
     persist(s);
     return { outcome: "reversed", invoiceId: inv.id, event };
@@ -289,7 +316,7 @@ export function reversePayment(originalTransactionId: string, time?: string): Ap
     narration: `Reversal for unknown transaction ${originalTransactionId}`, outcome: "reversed", time: when,
   };
   s.events.unshift(event);
-  if (s.events.length > EVENTS_CAP) s.events.length = EVENTS_CAP;
+  capEvents(s);
   persist(s);
   return { outcome: "reversed", invoiceId: null, event };
 }
