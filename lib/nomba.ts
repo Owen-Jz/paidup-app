@@ -96,10 +96,6 @@ export async function createVirtualAccount(opts: {
   };
 }
 
-export async function listVirtualAccounts(): Promise<any> {
-  return authed(`/v1/accounts/virtual/list`, { method: "POST", body: JSON.stringify({ limit: 50 }) });
-}
-
 /** A credit into a virtual account, normalized from the transactions/reporting endpoint. */
 export interface NombaCreditTxn {
   transactionId: string;
@@ -172,7 +168,7 @@ export async function transferToBank(opts: {
   idempotencyKey: string;
   senderName?: string;
 }): Promise<any> {
-  return authed(`/v2/transfers/bank`, {
+  const j = await authed(`/v2/transfers/bank`, {
     method: "POST",
     headers: { "X-Idempotent-key": opts.idempotencyKey },
     body: JSON.stringify({
@@ -185,4 +181,11 @@ export async function transferToBank(opts: {
       narration: opts.narration,
     }),
   });
+  // Like every other Nomba call, check the envelope — a 200 is not success.
+  if (j.code !== "00") throw new Error(`Transfer failed: [${j.code}] ${j.description}`);
+  // data.status: SUCCESS (settled) | PENDING_BILLING (async — confirm later via payout webhook) |
+  // REFUND (failed + auto-refunded). Only SUCCESS is a confirmed settlement; treat anything else as
+  // NOT a completed transfer so callers never report a live refund that didn't actually move money.
+  if (j.data?.status !== "SUCCESS") throw new Error(`Transfer not settled (status: ${j.data?.status ?? "unknown"})`);
+  return j.data;
 }

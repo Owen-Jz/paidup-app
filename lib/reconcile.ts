@@ -1,4 +1,4 @@
-// The reconciliation engine — the judged core. Pure + unit-tested in reconcile.test.mjs.
+// The reconciliation engine — the judged core. Pure + unit-tested in reconcile.test.ts.
 // Mirrors smoke-test/smoke-test.mjs reconcile(), generalized for partial accumulation.
 //
 // Money is held as Naira numbers and every arithmetic point is round2()-guarded to absorb

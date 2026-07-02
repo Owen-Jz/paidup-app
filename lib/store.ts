@@ -147,9 +147,17 @@ export interface CreateInvoiceInput {
   customer: string; description: string; amount: number;
   acctNumber: string; acctName: string; bankName: string; ref?: string;
 }
+/** Monotonic, collision-free invoice ref drawn from the same sequence createInvoice uses. */
+export function nextInvoiceRef(): string {
+  const s = store();
+  return `INV-${1100 + s.seq++}`;
+}
 export function createInvoice(input: CreateInvoiceInput): Invoice {
   const s = store();
-  const id = input.ref ?? `INV-${1100 + s.seq++}`;
+  // Never silently overwrite an existing invoice (which would reuse a live reconciliation key) —
+  // if a provided ref already exists, mint a fresh monotonic one instead.
+  let id = input.ref ?? `INV-${1100 + s.seq++}`;
+  if (input.ref && s.invoices.has(id)) id = `INV-${1100 + s.seq++}`;
   const invoice: Invoice = {
     id, customer: input.customer, description: input.description, amount: input.amount,
     paid: 0, status: "awaiting", createdAt: new Date().toISOString(), dueLabel: "Due in 7d",

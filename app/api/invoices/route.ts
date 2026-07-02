@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createInvoice, listInvoices } from "@/lib/store";
+import { createInvoice, listInvoices, nextInvoiceRef } from "@/lib/store";
 import { createVirtualAccount, nombaConfigured } from "@/lib/nomba";
 import { parseJsonBody, reqString, optString, posAmount } from "@/lib/validate";
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const description = descR.value;
   const useNomba = body.useNomba !== false;
 
-  const ref = `INV-${Date.now().toString().slice(-6)}`;
+  const ref = nextInvoiceRef();
 
   // Try to mint a REAL sandbox virtual account; fall back to a mock NUBAN if Nomba is
   // unconfigured or the sandbox 2-VA cap is hit, so the demo never breaks. Pass useNomba:false to force mock.
