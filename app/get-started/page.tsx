@@ -6,6 +6,8 @@ import Link from "next/link";
 
 type Step = 1 | 2 | "processing";
 
+type CreatedInvoice = { id: string; acctNumber: string; acctName: string; bankName: string; payToken?: string };
+
 const TASKS = [
   "Authenticating with Nomba",
   "Provisioning virtual account",
@@ -20,6 +22,7 @@ export default function GetStarted() {
   const [customer, setCustomer] = useState("");
   const [amount, setAmount] = useState("");
   const [taskIdx, setTaskIdx] = useState(-1);
+  const [invoice, setInvoice] = useState<CreatedInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   // NOTE: no "connect your Nomba account" step — the Nomba integration is platform-level (the
@@ -43,6 +46,10 @@ export default function GetStarted() {
             body: JSON.stringify({ customer, description: "First invoice", amount: parseFloat(amount) }),
           });
           ok = r.ok;
+          if (r.ok) {
+            const j = await r.json();
+            if (!cancelled && j?.invoice) setInvoice(j.invoice);
+          }
         } catch { ok = false; }
       }
       if (cancelled) return;
@@ -55,8 +62,7 @@ export default function GetStarted() {
         i += 1;
         if (i >= TASKS.length) {
           if (tick) clearInterval(tick);
-          setTaskIdx(TASKS.length);
-          setTimeout(() => { if (!cancelled) router.push("/app"); }, 900);
+          setTaskIdx(TASKS.length); // done — show the created-invoice confirmation, no auto-redirect
         } else {
           setTaskIdx(i);
         }
@@ -145,7 +151,35 @@ export default function GetStarted() {
                   </div>
                 ))}
                 {taskIdx >= TASKS.length && (
-                  <p className="sub" style={{ marginTop: 22 }}>Engine armed. Taking you to your dashboard…</p>
+                  <div style={{ marginTop: 22 }}>
+                    {invoice ? (
+                      <>
+                        <h3 style={{ margin: "0 0 6px" }}>✓ {invoice.id} created for {customer}.</h3>
+                        <p className="sub" style={{ marginBottom: 14 }}>
+                          Its dedicated account is live — any transfer to it reconciles automatically.
+                        </p>
+                        <div className="created-acct" style={{ marginBottom: 18 }}>
+                          <div className="mono" style={{ fontSize: 26, letterSpacing: ".04em" }}>{invoice.acctNumber}</div>
+                          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>{invoice.bankName} · {invoice.acctName}</div>
+                        </div>
+                        <div className="ob-actions" style={{ flexWrap: "wrap", gap: 10 }}>
+                          {invoice.payToken && (
+                            <a className="ghost" href={`/pay/${invoice.payToken}/invoice`} target="_blank" rel="noopener noreferrer">
+                              ⤓ Download invoice (PDF)
+                            </a>
+                          )}
+                          <button className="btn-xl" onClick={() => router.push("/app")}>Go to your dashboard →</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="sub" style={{ marginBottom: 14 }}>Engine armed. Your workspace is ready.</p>
+                        <div className="ob-actions">
+                          <button className="btn-xl" onClick={() => router.push("/app")}>Go to your dashboard →</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </>
             )}

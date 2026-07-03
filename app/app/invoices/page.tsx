@@ -191,6 +191,11 @@ export default function InvoicesPage() {
 // and focus returns to the trigger on close. (GAPS #24)
 function useDialogA11y<T extends HTMLElement>(onClose: () => void) {
   const ref = useRef<T>(null);
+  // Keep the latest onClose in a ref so the effect below can be MOUNT-ONLY. If it depended on
+  // [onClose] (an inline arrow from the parent), every parent re-render — which the 2s poll causes
+  // constantly — would re-run it and yank focus back to the dialog's first field mid-typing.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     const node = ref.current;
@@ -200,7 +205,7 @@ function useDialogA11y<T extends HTMLElement>(onClose: () => void) {
     focusables()[0]?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Escape") { onCloseRef.current(); return; }
       if (e.key !== "Tab") return;
       const els = focusables();
       if (!els.length) return;
@@ -210,7 +215,7 @@ function useDialogA11y<T extends HTMLElement>(onClose: () => void) {
     };
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("keydown", onKey); prev?.focus?.(); };
-  }, [onClose]);
+  }, []);
   return ref;
 }
 
@@ -366,9 +371,10 @@ function InvoiceDrawer({ invoice, onClose, refund }: { invoice: Invoice; onClose
               <div className="kicker">Customer payment page</div>
               <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 4 }}>Public link + QR — send it to {shortName(invoice.customer)}.</div>
             </div>
-            <div style={{ display: "flex", gap: 8, flex: "none" }}>
+            <div style={{ display: "flex", gap: 8, flex: "none", flexWrap: "wrap" }}>
               <a className="copy" href={`/pay/${invoice.payToken}`} target="_blank" rel="noopener noreferrer">Open ↗</a>
               <CopyBtn text={typeof window !== "undefined" ? `${window.location.origin}/pay/${invoice.payToken}` : `/pay/${invoice.payToken}`} label="Copy link" />
+              <a className="copy" href={`/pay/${invoice.payToken}/invoice`} target="_blank" rel="noopener noreferrer" title="Printable invoice document — save as PDF and send it">⤓ Invoice PDF</a>
             </div>
           </div>
         )}
@@ -455,7 +461,12 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
               <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>{created.bankName} · {created.acctName}</div>
               <div style={{ marginTop: 14 }}><CopyBtn text={created.acctNumber} /></div>
             </div>
-            <div className="row" style={{ justifyContent: "center", marginTop: 18 }}>
+            <div className="row" style={{ justifyContent: "center", marginTop: 18, flexWrap: "wrap", gap: 8 }}>
+              {created.payToken && (
+                <a className="ghost" href={`/pay/${created.payToken}/invoice`} target="_blank" rel="noopener noreferrer">
+                  ⤓ Download invoice (PDF)
+                </a>
+              )}
               <button className="btn" onClick={onClose}>Done</button>
             </div>
           </div>
