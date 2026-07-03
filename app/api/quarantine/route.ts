@@ -40,11 +40,11 @@ export async function POST(req: NextRequest) {
     if (nombaConfigured()) {
       if (ev.senderAccountNumber && ev.senderBankCode) {
         try {
-          await lookupBankAccount(ev.senderAccountNumber, ev.senderBankCode);
+          const acct = await lookupBankAccount(ev.senderAccountNumber, ev.senderBankCode);
           await transferToBank({
             amount: ev.amount,
             accountNumber: ev.senderAccountNumber,
-            accountName: ev.customer,
+            accountName: acct.accountName, // bank-confirmed name, not the unverified webhook sender
             bankCode: ev.senderBankCode,
             narration: "Returned: no matching invoice",
             idempotencyKey: `bounce_${transactionId}`,

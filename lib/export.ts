@@ -65,7 +65,9 @@ export function statementCsv(invoice: Invoice): string {
   ];
   let running = 0;
   for (const p of invoice.payments) {
-    running += p.amount;
+    // A reversed payment was clawed back, so it must not keep inflating the running total —
+    // otherwise the last running value disagrees with "Total collected" above.
+    running += p.outcome === "reversed" ? 0 : p.amount;
     rows.push([
       p.time, p.transactionId, p.sender, p.bankName, money(p.amount), p.outcome, money(running), p.narration,
     ]);

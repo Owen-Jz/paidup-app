@@ -57,6 +57,14 @@ test("unmatched alias is quarantined, never lost or misapplied", () => {
   assert.equal(res.invoiceId, null);
 });
 
+test("reversing an unknown transaction is idempotent — retries don't pile up feed rows", () => {
+  fixture();
+  assert.equal(reversePayment("tx_unknown_x").outcome, "reversed");
+  assert.equal(reversePayment("tx_unknown_x").outcome, "duplicate"); // Nomba retry
+  const evs = (g.__paidup!.events as Array<{ id: string }>).filter((e) => e.id === "rev_tx_unknown_x");
+  assert.equal(evs.length, 1, "only one unmatched-reversal event, not one per retry");
+});
+
 test("an unresolved quarantine survives the 200-event feed cap (unmatched money is never evicted)", () => {
   fixture();
   applyPayment({ transactionId: "tx_quar", aliasAccountReference: "INV-NOPE", amount: 5000, sender: "Ghost" });

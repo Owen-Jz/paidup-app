@@ -105,7 +105,8 @@ function seed(): StoreShape {
     audit.push(appendEntry(audit, `payment.${e.outcome}`, `${e.id} ${e.invoiceId ?? "unmatched"} ${e.amount}`, e.time));
   }
 
-  return { invoices, events, seenTx: new Set(["tx_seed1", "tx_seed2", "tx_seed3", "tx_seed4"]), seq: 1, audit };
+  // tx_seed5 is INV-1047's seeded payment — include it so a replayed webhook can't double-credit it.
+  return { invoices, events, seenTx: new Set(["tx_seed1", "tx_seed2", "tx_seed3", "tx_seed4", "tx_seed5"]), seq: 1, audit };
 }
 
 function load(): StoreShape | null {
@@ -311,12 +312,17 @@ export function reversePayment(originalTransactionId: string, time?: string): Ap
   }
 
   // No matching payment — record an informational unmatched reversal so it isn't silently dropped.
+  // Idempotent: Nomba retries, so a repeat delivery must not pile up duplicate rows.
+  const revId = `rev_${originalTransactionId}`;
+  const existingRev = s.events.find((e) => e.id === revId);
+  if (existingRev) return { outcome: "duplicate", invoiceId: null, event: existingRev };
   const event: FeedEvent = {
-    id: `rev_${originalTransactionId}`, invoiceId: null, customer: "Reversal", amount: 0,
+    id: revId, invoiceId: null, customer: "Reversal", amount: 0,
     narration: `Reversal for unknown transaction ${originalTransactionId}`, outcome: "reversed", time: when,
   };
   s.events.unshift(event);
   capEvents(s);
+  recordAudit(s, "payment.reversed.unmatched", `${originalTransactionId} unmatched 0`, when);
   persist(s);
   return { outcome: "reversed", invoiceId: null, event };
 }
@@ -339,7 +345,7 @@ export function markRefunded(invoiceId: string): { invoice: Invoice; refunded: n
   inv.status = "paid";
   const refundTime = new Date().toISOString();
   s.events.unshift({
-    id: `refund_${invoiceId}_${s.seq++}`, invoiceId, customer: inv.customer, amount: refunded,
+    id: `refund_${invoiceId}_${crypto.randomBytes(4).toString("hex")}`, invoiceId, customer: inv.customer, amount: refunded,
     bankName: inv.payments[inv.payments.length - 1]?.bankName, narration: "Refund sent to payer",
     outcome: "refunded", time: refundTime,
   });

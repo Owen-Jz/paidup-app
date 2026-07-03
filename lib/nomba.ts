@@ -20,6 +20,10 @@ async function getToken(): Promise<string> {
     headers: { "Content-Type": "application/json", accountId: ACCOUNT_ID },
     body: JSON.stringify({ grant_type: "client_credentials", client_id: CLIENT_ID, client_secret: CLIENT_SECRET }),
   });
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`Nomba auth ${r.status}: ${body.slice(0, 200)}`);
+  }
   const j = await r.json();
   if (j.code !== "00") throw new Error(`Nomba auth failed: [${j.code}] ${j.description}`);
   // expiresAt comes back as ISO; tokens last ~30 min. Fall back to 30 min if unparseable.
@@ -46,6 +50,11 @@ async function authed(path: string, init: RequestInit = {}, retry = false): Prom
   }
   if (r.status === 429) {
     throw new Error(`Nomba rate limited (429) on ${path}; back off and retry`);
+  }
+  // A 5xx / gateway page isn't JSON — surface the status + snippet instead of a bare SyntaxError.
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`Nomba ${r.status} on ${path}: ${body.slice(0, 200)}`);
   }
   return r.json();
 }

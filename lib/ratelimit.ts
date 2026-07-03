@@ -9,11 +9,21 @@ const store = new Map<string, Bucket>();
 
 export type RateResult = { allowed: boolean; remaining: number; retryAfterSec: number };
 
+// Opportunistically drop expired buckets so the map can't grow unbounded from rotated/spoofed keys
+// that never return (at most once a minute, so it stays cheap).
+let lastSweep = 0;
+function sweep(now: number): void {
+  if (now - lastSweep < 60_000) return;
+  lastSweep = now;
+  for (const [k, v] of store) if (now >= v.resetAt) store.delete(k);
+}
+
 export function rateLimit(
   key: string,
   opts: { limit: number; windowMs: number },
   now: number = Date.now(),
 ): RateResult {
+  sweep(now);
   const b = store.get(key);
   if (!b || now >= b.resetAt) {
     store.set(key, { count: 1, resetAt: now + opts.windowMs });

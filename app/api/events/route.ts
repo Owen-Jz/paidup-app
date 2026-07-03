@@ -19,10 +19,16 @@ export async function GET() {
   const anomalies = scanAnomalies(invoices, rawQuarantine);
   const attention = invoices.filter((i) => i.status === "overpaid").length + quarantine.length;
 
+  // The polled feed doesn't need raw payer bank details — mask them to last-4 so this endpoint
+  // never leaks full account numbers (bounce/refund read the real values server-side, not from here).
+  const maskAcct = (n?: string) => (n ? "••••" + n.slice(-4) : n);
+  const maskEvent = <T extends { senderAccountNumber?: string }>(e: T): T => ({ ...e, senderAccountNumber: maskAcct(e.senderAccountNumber) });
+  const safeInvoices = invoices.map((i) => ({ ...i, payments: i.payments.map(maskEvent) }));
+
   return NextResponse.json({
-    invoices,
-    events,
-    quarantine,
+    invoices: safeInvoices,
+    events: events.map(maskEvent),
+    quarantine: quarantine.map(maskEvent),
     anomalies,
     kpis: { invoiced, collected, outstanding, attention, rate: invoiced ? Math.round((collected / invoiced) * 100) : 0 },
   });

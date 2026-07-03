@@ -34,11 +34,11 @@ export async function POST(req: NextRequest) {
   if (nombaConfigured()) {
     if (lastPayment?.senderAccountNumber && lastPayment?.senderBankCode) {
       try {
-        await lookupBankAccount(lastPayment.senderAccountNumber, lastPayment.senderBankCode);
+        const acct = await lookupBankAccount(lastPayment.senderAccountNumber, lastPayment.senderBankCode);
         await transferToBank({
           amount: surplus,
           accountNumber: lastPayment.senderAccountNumber,
-          accountName: lastPayment.sender,
+          accountName: acct.accountName, // bank-confirmed name, not the unverified webhook-supplied one
           bankCode: lastPayment.senderBankCode,
           narration: `Refund of overpayment on ${invoiceId}`,
           idempotencyKey: `refund_${invoiceId}_${lastPayment.transactionId}`,
