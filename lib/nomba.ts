@@ -177,7 +177,10 @@ export async function transferToBank(opts: {
   idempotencyKey: string;
   senderName?: string;
 }): Promise<any> {
-  const j = await authed(`/v2/transfers/bank`, {
+  // Scope the payout to our sub-account per Nomba's verified hackathon endpoint
+  // (POST /v2/transfers/bank/{subAccountId}); fall back to the un-scoped path if no sub-account is set.
+  const path = SUB_ACCOUNT_ID ? `/v2/transfers/bank/${SUB_ACCOUNT_ID}` : `/v2/transfers/bank`;
+  const j = await authed(path, {
     method: "POST",
     headers: { "X-Idempotent-key": opts.idempotencyKey },
     body: JSON.stringify({
