@@ -36,11 +36,23 @@ integrity** — both are treated as money-correctness problems, not afterthought
   with a **stable idempotency key** derived from the originating transaction (never `Date.now()`), so a
   retried payout is deduped by Nomba rather than sending twice.
 
-## Access control
-- Opt-in **shared-password gate** (`APP_PASSWORD`) over `/app` + all `/api` routes. Session cookie is a
-  SHA-256 token *derived* from the password (the password is never stored), `httpOnly` + `sameSite=lax` +
-  `secure` in production, constant-time compared. **The Nomba webhook is never gated** (it authenticates
-  with its own HMAC). Unset = open public demo.
+## Access control (multi-tenant auth)
+- **Real accounts, isolated workspaces.** Self-serve signup mints a tenant + owner user; every ledger
+  record carries a `tenantId` and **every API read/mutation is scoped server-side** to the session's
+  tenant — tenant A can never read, credit, refund, or resolve tenant B's money (unit-tested, including
+  cross-tenant assign/refund/bounce refusal).
+- **Passwords: scrypt** (Node built-in) with a per-user random salt, verified with `timingSafeEqual`.
+  Unknown-email logins verify against a decoy hash so there's no user-enumeration timing oracle, and
+  the error is the same generic "invalid email or password" either way.
+- **Sessions: stateless HMAC-SHA256-signed tokens** (`payload.signature`, payload = `{uid, tid, ver, exp}`,
+  8h expiry) signed with `SESSION_SECRET`. The edge middleware verifies signature + expiry with Web
+  Crypto (no DB at the edge); the node layer additionally checks the user still exists and the token's
+  `ver` matches the stored `tokenVersion` (bumping it revokes all outstanding sessions). Cookies are
+  `httpOnly` + `sameSite=lax` + `secure` in production.
+- **Fail closed.** `/app`, `/get-started`, and all `/api` routes require a valid session; production
+  with no `SESSION_SECRET` refuses requests (503) rather than running an open ledger. Public by design:
+  `/api/webhook` (authenticates with its own HMAC), `/api/login` + `/api/signup` (rate-limited:
+  8 logins / 5 signups per IP per 15 min), and the unguessable-token customer pay page `/pay/<token>`.
 
 ## AI safety (the moat that can't break the money path)
 - **AI never moves money and never decides reconciliation.** The MiniMax features (unmatched resolver,
@@ -60,13 +72,15 @@ integrity** — both are treated as money-correctness problems, not afterthought
 
 ## Known limits / threat model
 - File store is single-instance; move to Postgres before a serverless deploy.
-- The auth gate is a single shared password (MVP scope), not per-user accounts.
+- Auth v1 defers email verification, password reset, and team members (one owner-user per tenant);
+  unmatched money with no attributable tenant lands in the operator (demo) workspace for resolution.
 - Money is held as guarded Naira floats (round-2 + kobo tolerance, tested); integer-kobo is the
   post-hackathon hardening step.
 
 ## Verification
-`npm test` → 105 unit tests (reconcile incl. reversal, HMAC/signature vector, resolver + AI-fallback, export,
-auth, anomaly + AI-explain, summary + AI-fallback, plus ai, validate, store, ratelimit, security-headers,
+`npm test` → 123 unit tests (reconcile incl. reversal, HMAC/signature vector, session-token sign/verify/
+tamper/expiry, scrypt password hashing, tenant isolation incl. cross-tenant refusal, resolver + AI-fallback,
+export, anomaly + AI-explain, summary + AI-fallback, plus ai, validate, store, ratelimit, security-headers,
 audit, receipt).
 `npm run build` green. Webhook fail-closed, auth 401/200, and reversal flows verified live against
 `sandbox.nomba.com`. The refund/transfer path (`/v2/transfers/bank`) is exercised end-to-end, but **actual

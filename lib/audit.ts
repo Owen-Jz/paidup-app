@@ -10,6 +10,7 @@ export interface AuditEntry {
   time: string;       // ISO timestamp of the action
   type: string;       // e.g. "payment.paid", "refund", "invoice.created"
   detail: string;     // compact, secret-free description (ids/amounts only)
+  tenantId?: string;  // owning workspace; absent on entries minted before multi-tenancy
   prevHash: string;   // hash of the previous entry ("GENESIS" for the first)
   hash: string;       // sha256 over the fields above
 }
@@ -17,17 +18,20 @@ export interface AuditEntry {
 export const GENESIS = "GENESIS";
 
 export function hashEntry(e: Omit<AuditEntry, "hash">): string {
+  // tenantId joins the hash only when present, so pre-tenancy entries persisted with the old
+  // 5-field format still verify byte-for-byte.
+  const tenantPart = e.tenantId != null ? `|${e.tenantId}` : "";
   return crypto.createHash("sha256")
-    .update(`${e.seq}|${e.time}|${e.type}|${e.detail}|${e.prevHash}`)
+    .update(`${e.seq}|${e.time}|${e.type}|${e.detail}|${e.prevHash}${tenantPart}`)
     .digest("hex");
 }
 
 /** Build the next entry chained onto `log` (does not mutate `log`). */
-export function appendEntry(log: AuditEntry[], type: string, detail: string, time: string): AuditEntry {
+export function appendEntry(log: AuditEntry[], type: string, detail: string, time: string, tenantId?: string): AuditEntry {
   const prev = log[log.length - 1];
   const seq = prev ? prev.seq + 1 : 1;
   const prevHash = prev ? prev.hash : GENESIS;
-  const base = { seq, time, type, detail, prevHash };
+  const base = tenantId != null ? { seq, time, type, detail, tenantId, prevHash } : { seq, time, type, detail, prevHash };
   return { ...base, hash: hashEntry(base) };
 }
 
@@ -36,8 +40,10 @@ export function verifyChain(log: AuditEntry[]): { ok: boolean; brokenAt: number 
   let prevHash = GENESIS;
   for (let i = 0; i < log.length; i++) {
     const e = log[i];
-    const reHash = hashEntry({ seq: e.seq, time: e.time, type: e.type, detail: e.detail, prevHash: e.prevHash });
-    if (e.seq !== i + 1 || e.prevHash !== prevHash || e.hash !== reHash) {
+    const base = e.tenantId != null
+      ? { seq: e.seq, time: e.time, type: e.type, detail: e.detail, tenantId: e.tenantId, prevHash: e.prevHash }
+      : { seq: e.seq, time: e.time, type: e.type, detail: e.detail, prevHash: e.prevHash };
+    if (e.seq !== i + 1 || e.prevHash !== prevHash || e.hash !== hashEntry(base)) {
       return { ok: false, brokenAt: i };
     }
     prevHash = e.hash;

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sessionToken, safeEqual, AUTH_COOKIE } from "@/lib/auth";
-import { rateLimit, resetRateLimit } from "@/lib/ratelimit";
+import { AUTH_COOKIE, SESSION_TTL_SEC, sessionSecret, signSession } from "@/lib/auth";
+import { verifyPassword } from "@/lib/password";
+import { getUserByEmail } from "@/lib/store";
+import { clientIp, rateLimit, resetRateLimit } from "@/lib/ratelimit";
+import { parseJsonBody, reqString } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -9,18 +12,22 @@ export const dynamic = "force-dynamic";
 const LOGIN_LIMIT = 8;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
-function clientIp(req: NextRequest): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
-  return req.headers.get("x-real-ip") || "unknown";
-}
+// scrypt of "decoy" — verified against when the email is unknown, so "no such user" and "wrong
+// password" take the same time (no user-enumeration timing oracle).
+const DECOY_HASH = "scrypt:00000000000000000000000000000000:" + "0".repeat(128);
 
-// Exchange the shared password for a session cookie (GAPS #16).
+// Exchange email + password for a signed session cookie (multi-tenant auth).
 export async function POST(req: NextRequest) {
-  const pw = process.env.APP_PASSWORD || "";
-  const { password } = (await req.json().catch(() => ({}))) as { password?: string };
+  const secret = sessionSecret();
+  if (!secret) return NextResponse.json({ error: "auth not configured" }, { status: 503 });
 
-  if (!pw) return NextResponse.json({ ok: true, open: true }); // no gate configured
+  const parsed = parseJsonBody(await req.text());
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  const body = parsed.data as { email?: unknown; password?: unknown };
+  const emailR = reqString(body.email, "email", 254);
+  if (!emailR.ok) return NextResponse.json({ error: emailR.error }, { status: 400 });
+  const passR = reqString(body.password, "password", 200);
+  if (!passR.ok) return NextResponse.json({ error: passR.error }, { status: 400 });
 
   // Rate-limit BEFORE doing any password work so an attacker can't burn CPU or brute-force.
   const key = `login:${clientIp(req)}`;
@@ -32,20 +39,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Constant-time compare over equal-length SHA-256 tokens — never leaks the password length or a
-  // character-by-character timing oracle the way a raw `password !== pw` would.
-  const ok = password != null && safeEqual(await sessionToken(password), await sessionToken(pw));
-  if (!ok) {
-    return NextResponse.json({ error: "incorrect password" }, { status: 401 });
+  const user = getUserByEmail(emailR.value);
+  // Always run scrypt (against a decoy when the user is unknown) — same generic error either way.
+  const ok = verifyPassword(passR.value, user?.passwordHash ?? DECOY_HASH) && Boolean(user);
+  if (!ok || !user) {
+    return NextResponse.json({ error: "invalid email or password" }, { status: 401 });
   }
 
   resetRateLimit(key); // legit login — don't penalize subsequent requests from this IP
+  const token = await signSession(
+    { uid: user.id, tid: user.tenantId, ver: user.tokenVersion, exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SEC },
+    secret,
+  );
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(AUTH_COOKIE, await sessionToken(pw), {
+  res.cookies.set(AUTH_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 8, // 8h
+    maxAge: SESSION_TTL_SEC,
     secure: process.env.NODE_ENV === "production",
   });
   return res;

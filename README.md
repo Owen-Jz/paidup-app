@@ -28,11 +28,12 @@ not the generic dark-dashboard look. All design tokens are CSS variables in `app
 
 ## Architecture
 ```
-middleware.ts           opt-in auth gate over /app + /api (skips webhook + login) — APP_PASSWORD
+middleware.ts           fail-closed auth gate over /app + /get-started + /api (public: webhook, login, signup, logout)
 app/
   page.tsx              Marketing landing
-  get-started/page.tsx  Onboarding wizard + processing/arming sequence
-  login/page.tsx        Shared-password sign-in (only when APP_PASSWORD set)
+  get-started/page.tsx  Onboarding wizard + processing/arming sequence (post-signup first-invoice flow)
+  login/page.tsx        Email + password sign-in
+  signup/page.tsx       Self-serve signup -> isolated tenant workspace
   app/
     layout.tsx          App chrome (header + nav)
     page.tsx            Live feed
@@ -48,7 +49,9 @@ app/
     resolve/route.ts    AI unmatched-payment resolver (on-demand, MiniMax) -> grounded suggestion
     explain/route.ts    AI anomaly explanations (on-demand, MiniMax) -> per-flag recommended action
     summary/route.ts    AI reconciliation brief (on-demand, MiniMax) over the computed snapshot
-    login/route.ts      password -> session cookie
+    login/route.ts      email + password (scrypt) -> signed session cookie
+    signup/route.ts     business + email + password -> tenant + owner user + session
+    logout/route.ts     clears the session cookie
     simulate/route.ts   demo driver (gated out of prod) -> runs the real reconcile/reverse path
 lib/
   reconcile.ts          classify() + reverse() + statusFor()  (the judged core; pure, tested)
@@ -58,9 +61,11 @@ lib/
   summary.ts            snapshot() + templatedSummary() (fallback) + aiSummary() (MiniMax brief)
   ai.ts                 MiniMax client — returns null on any failure so callers fall back (the AI seam)
   export.ts             RFC-4180 CSV builders (ledger + statement)
-  auth.ts               Web-Crypto session token + constant-time compare
+  auth.ts               stateless HMAC-signed session tokens (edge-safe Web Crypto; SESSION_SECRET)
+  password.ts           scrypt password hashing (per-user salt, timingSafeEqual)
+  session.ts            node-side session resolution (tokenVersion revocation check)
   nomba.ts              token (cached) · createVirtualAccount · getVirtualAccountTransactions · transferToBank
-  store.ts              durable file-backed ledger (SWAP for Postgres before serverless deploy)
+  store.ts              durable file-backed multi-tenant ledger (SWAP for Postgres before serverless deploy)
   types.ts / format.ts
 ```
 
@@ -99,7 +104,10 @@ AI seam is injectable, so the resolver/anomaly/summary fallbacks are unit-tested
 - ✅ **AI moat (MiniMax, optional):** AI unmatched-payment resolver, anomaly explanations, and reconciliation
   brief — each **grounded** (no invented invoice ids/amounts), AI-suggests-human-confirms, and with a
   **deterministic fallback** so a missing/rate-limited key never breaks the demo. See "AI moat" above.
-- ✅ **Security:** opt-in `APP_PASSWORD` gate (httpOnly session cookie, constant-time compare; webhook never gated).
+- ✅ **Security — real multi-tenant auth:** self-serve signup, scrypt passwords, stateless HMAC-signed
+  session cookies (httpOnly, 8h, revocable via tokenVersion), fail-closed middleware, and **server-side
+  tenant isolation on every route** (webhook never gated — it authenticates with its own HMAC).
+  Demo workspace: `demo@paidup.app` / `LedgerDemo2026` (see DEMO.md); requires `SESSION_SECRET` in env.
 - ✅ Durable file-backed ledger (`.data/ledger.json`) so restarts don't replay-double-credit; `/api/simulate` gated out of production.
 - ✅ Live token issue + VA create/list + requery against `sandbox.nomba.com` (refund call-path exercised in sandbox; transfer/refund **settlement is production-only**).
 

@@ -41,3 +41,10 @@ export function resetRateLimit(key?: string): void {
   if (key) store.delete(key);
   else store.clear();
 }
+
+/** Best-effort client IP for rate-limit keys (works on NextRequest or anything header-shaped). */
+export function clientIp(req: { headers: { get(name: string): string | null } }): string {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  return req.headers.get("x-real-ip") || "unknown";
+}

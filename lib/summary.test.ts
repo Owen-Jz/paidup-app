@@ -4,11 +4,11 @@ import { snapshot, templatedSummary, aiSummary } from "./summary.ts";
 import type { Invoice, FeedEvent } from "./types.ts";
 
 function inv(id: string, amount: number, paid: number, status: Invoice["status"]): Invoice {
-  return { id, customer: id + " Co", description: "", amount, paid, status, createdAt: "",
+  return { id, tenantId: "ten_test", customer: id + " Co", description: "", amount, paid, status, createdAt: "",
     acctNumber: "1", acctName: "x", bankName: "y", payments: [] };
 }
 function q(): FeedEvent {
-  return { id: "q" + Math.random(), invoiceId: null, customer: "UNKNOWN", amount: 5000, outcome: "quarantine", time: "" };
+  return { id: "q" + Math.random(), tenantId: "ten_test", invoiceId: null, customer: "UNKNOWN", amount: 5000, outcome: "quarantine", time: "" };
 }
 
 const BOOK = [

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { nombaConfigured, getVirtualAccountTransactions } from "@/lib/nomba";
 import { applyPayment, listInvoices } from "@/lib/store";
+import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
 // "never rely on webhooks alone." Targets open invoices (awaiting/partial) — where a missed
 // credit actually matters — to keep the API-call count bounded.
 export async function POST() {
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!nombaConfigured()) {
     return NextResponse.json({
       configured: false,
@@ -18,7 +21,7 @@ export async function POST() {
     });
   }
 
-  const open = listInvoices().filter((i) => i.status === "awaiting" || i.status === "partial");
+  const open = listInvoices(session.tid).filter((i) => i.status === "awaiting" || i.status === "partial");
   let scanned = 0, applied = 0, duplicates = 0, quarantined = 0;
   const errors: string[] = [];
 
@@ -38,6 +41,7 @@ export async function POST() {
           bankName: c.bankName,
           narration: c.narration,
           time: c.time,
+          fallbackTenantId: session.tid, // an unmatched credit on this tenant's VA stays theirs
         });
         if (r.outcome === "duplicate") duplicates++;
         else if (r.outcome === "quarantine") quarantined++;

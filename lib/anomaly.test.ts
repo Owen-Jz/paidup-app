@@ -13,11 +13,11 @@ function pay(o: Partial<Payment> & { amount: number; transactionId: string; time
   } as Payment;
 }
 function inv(id: string, amount: number, paid: number, status: Invoice["status"], payments: Payment[] = []): Invoice {
-  return { id, customer: "Acme Co", description: "", amount, paid, status, createdAt: "",
+  return { id, tenantId: "ten_test", customer: "Acme Co", description: "", amount, paid, status, createdAt: "",
     acctNumber: "1", acctName: "x", bankName: "y", payments };
 }
 function q(acct: string, customer = "UNKNOWN"): FeedEvent {
-  return { id: "q" + Math.random(), invoiceId: null, customer, amount: 5000, outcome: "quarantine", time: "", senderAccountNumber: acct };
+  return { id: "q" + Math.random(), tenantId: "ten_test", invoiceId: null, customer, amount: 5000, outcome: "quarantine", time: "", senderAccountNumber: acct };
 }
 
 test("large overpayment (>=150%) is flagged HIGH", () => {

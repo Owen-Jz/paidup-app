@@ -15,16 +15,21 @@ type StoreShape = {
   seenTx: Set<string>;
   seq: number;
   audit: unknown[];
+  tenants: Map<string, unknown>;
+  users: Map<string, unknown>;
 };
 const g = globalThis as unknown as { __paidup?: StoreShape };
 
 function fixture(): Invoice {
   const inv: Invoice = {
-    id: "INV-T", customer: "Test Co", description: "x", amount: 100000, paid: 0, status: "awaiting",
+    id: "INV-T", tenantId: "ten_test", customer: "Test Co", description: "x", amount: 100000, paid: 0, status: "awaiting",
     createdAt: "2026-01-01T00:00:00Z", acctNumber: "1234567890", acctName: "Test/PaidUp",
     bankName: "Nombank MFB", payments: [],
   };
-  g.__paidup = { invoices: new Map([[inv.id, inv]]), events: [], seenTx: new Set(), seq: 1, audit: [] };
+  g.__paidup = {
+    invoices: new Map([[inv.id, inv]]), events: [], seenTx: new Set(), seq: 1, audit: [],
+    tenants: new Map(), users: new Map(),
+  };
   return inv;
 }
 

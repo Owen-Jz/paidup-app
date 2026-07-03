@@ -8,7 +8,7 @@ function pay(amount: number, over: Payment["outcome"] = "partial", narration = "
 }
 function inv(over = false): Invoice {
   return {
-    id: "INV-1044", customer: "Konga, Online", description: 'Redesign "phase 1"', amount: 100000,
+    id: "INV-1044", tenantId: "ten_test", customer: "Konga, Online", description: 'Redesign "phase 1"', amount: 100000,
     paid: over ? 120000 : 60000, status: over ? "overpaid" : "partial", createdAt: "2026-06-26T09:00:00Z",
     acctNumber: "7741120385", acctName: "Konga/PaidUp", bankName: "Nombank MFB",
     payments: [pay(60000), ...(over ? [pay(60000, "overpaid")] : [])],

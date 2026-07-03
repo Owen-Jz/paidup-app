@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sessionToken, safeEqual, AUTH_COOKIE } from "@/lib/auth";
+import { AUTH_COOKIE, sessionSecret, verifySession } from "@/lib/auth";
 
-// Auth gate (GAPS #16). Runs on the app + API surface. When APP_PASSWORD is unset it's a no-op
-// (open demo). The Nomba webhook is NEVER gated here — it authenticates with its own HMAC and is
-// called by Nomba, not a logged-in human. The login endpoint is exempt so you can obtain a session.
-export const config = { matcher: ["/app/:path*", "/api/:path*"] };
+// Auth gate — FAILS CLOSED. Every /app page, the onboarding wizard, and every API route requires a
+// valid signed session token, EXCEPT:
+//   /api/webhook — called by Nomba, not a human; it authenticates with its own HMAC signature.
+//   /api/login, /api/signup — how you obtain a session.
+//   /api/logout — must work even with a stale/invalid cookie (it only clears the cookie).
+// The public pay page (/pay/<unguessable-token>) is outside the matcher on purpose — customers
+// paying an invoice are not logged in.
+// The edge check is signature + expiry only (no store at the edge); the node layer
+// (lib/session.ts) additionally checks tokenVersion (revocation) and that the user still exists.
+export const config = { matcher: ["/app/:path*", "/get-started", "/api/:path*"] };
+
+const PUBLIC_API = ["/api/webhook", "/api/login", "/api/signup", "/api/logout"];
 
 export async function middleware(req: NextRequest) {
-  const pw = process.env.APP_PASSWORD || "";
-  if (!pw) return NextResponse.next();
-
   const { pathname } = req.nextUrl;
-  if (pathname.startsWith("/api/webhook") || pathname.startsWith("/api/login")) {
-    return NextResponse.next();
+  if (PUBLIC_API.some((p) => pathname.startsWith(p))) return NextResponse.next();
+
+  const secret = sessionSecret();
+  if (!secret) {
+    // Production with no SESSION_SECRET: refuse everything rather than run an open ledger.
+    return NextResponse.json({ error: "auth not configured (set SESSION_SECRET)" }, { status: 503 });
   }
 
-  const cookie = req.cookies.get(AUTH_COOKIE)?.value || "";
-  const expected = await sessionToken(pw);
-  if (cookie && safeEqual(cookie, expected)) return NextResponse.next();
+  const token = req.cookies.get(AUTH_COOKIE)?.value || "";
+  if (token && (await verifySession(token, secret))) return NextResponse.next();
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

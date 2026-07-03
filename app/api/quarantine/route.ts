@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEvent, resolveQuarantineToInvoice, markQuarantineBounced } from "@/lib/store";
+import { requireSession } from "@/lib/session";
 import { transferToBank, lookupBankAccount, nombaConfigured } from "@/lib/nomba";
 import { parseJsonBody, reqString, oneOf } from "@/lib/validate";
 
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 //   action="assign" → re-match it to an invoice and reconcile (idempotent; reuses the existing tx).
 //   action="bounce" → send the money back to the payer via /v2/transfers/bank, then mark it bounced.
 export async function POST(req: NextRequest) {
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const parsed = parseJsonBody(await req.text());
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   const body = parsed.data as { action?: unknown; transactionId?: unknown; invoiceId?: unknown };
@@ -24,14 +27,15 @@ export async function POST(req: NextRequest) {
     const invR = reqString(body.invoiceId, "invoiceId", 40);
     if (!invR.ok) return NextResponse.json({ error: invR.error }, { status: 400 });
     const invoiceId = invR.value;
-    const result = resolveQuarantineToInvoice(transactionId, invoiceId);
+    // Store enforces that the caller's tenant owns BOTH the payment and the target invoice.
+    const result = resolveQuarantineToInvoice(transactionId, invoiceId, session.tid);
     if (!result) return NextResponse.json({ error: "could not assign (not quarantined / unknown invoice)" }, { status: 400 });
     return NextResponse.json({ ok: true, outcome: result.outcome, invoiceId: result.invoice.id });
   }
 
   if (action === "bounce") {
     const ev = getEvent(transactionId);
-    if (!ev || ev.outcome !== "quarantine") return NextResponse.json({ error: "not a quarantined payment" }, { status: 400 });
+    if (!ev || ev.outcome !== "quarantine" || ev.tenantId !== session.tid) return NextResponse.json({ error: "not a quarantined payment" }, { status: 400 });
     const demo = process.env.NODE_ENV !== "production" || process.env.DEMO_MODE === "1"; // mirrors simulate/refund
     let live = false;
     // Same rule as refunds: in PRODUCTION we must really send the money back, or leave the payment
@@ -57,7 +61,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "cannot bounce: sender bank details unavailable" }, { status: 422 });
       }
     }
-    const ok = markQuarantineBounced(transactionId);
+    const ok = markQuarantineBounced(transactionId, session.tid);
     if (!ok) return NextResponse.json({ error: "could not bounce" }, { status: 500 });
     return NextResponse.json({ ok: true, live });
   }

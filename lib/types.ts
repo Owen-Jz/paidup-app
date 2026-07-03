@@ -1,6 +1,24 @@
 // Shared domain types. Entity = invoice; accountRef = invoice.id (the reconciliation key).
 
 export type InvoiceStatus = "awaiting" | "partial" | "paid" | "overpaid";
+
+// ---- Multi-tenant auth ----------------------------------------------------------------------
+// One tenant = one business workspace. One owner-user per tenant (v1 — team members deferred).
+
+export interface Tenant {
+  id: string;
+  businessName: string; // the beneficiary name payers see; used as the VA accountName
+  createdAt: string;
+}
+
+export interface User {
+  id: string;
+  tenantId: string;
+  email: string;         // login identifier (stored lowercase)
+  passwordHash: string;  // scrypt — see lib/password.ts
+  tokenVersion: number;  // bump to invalidate every outstanding session token
+  createdAt: string;
+}
 export type PaymentOutcome = InvoiceStatus | "duplicate" | "quarantine" | "refunded" | "reversed";
 
 // Typed shape of the Nomba payment_success webhook (only the fields we read).
@@ -35,7 +53,8 @@ export interface Payment {
 }
 
 export interface Invoice {
-  id: string;                // accountRef ↔ webhook aliasAccountReference
+  id: string;                // accountRef ↔ webhook aliasAccountReference (globally unique)
+  tenantId: string;          // owning workspace — every read/mutation is scoped to this
   customer: string;
   customerEmail?: string;
   description: string;
@@ -56,6 +75,7 @@ export interface Invoice {
 
 export interface FeedEvent {
   id: string;                // transactionId
+  tenantId: string;          // matched → the invoice's tenant; unmatched → the receiving workspace
   invoiceId: string | null;  // null = quarantined (no match)
   customer: string;          // matched customer, or the raw sender
   amount: number;

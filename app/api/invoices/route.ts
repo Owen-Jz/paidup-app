@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createInvoice, listInvoices, nextInvoiceRef, BUSINESS_NAME } from "@/lib/store";
+import { createInvoice, listInvoices, nextInvoiceRef } from "@/lib/store";
+import { requireSession } from "@/lib/session";
 import { createVirtualAccount, nombaConfigured } from "@/lib/nomba";
 import { parseJsonBody, reqString, optString, posAmount } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ invoices: listInvoices() });
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  return NextResponse.json({ invoices: listInvoices(session.tid) });
 }
 
 export async function POST(req: NextRequest) {
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const parsed = parseJsonBody(await req.text());
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   const body = parsed.data as { customer?: unknown; description?: unknown; amount?: unknown; useNomba?: unknown };
@@ -30,17 +35,18 @@ export async function POST(req: NextRequest) {
 
   // Try to mint a REAL sandbox virtual account; fall back to a mock NUBAN if Nomba is
   // unconfigured or the call fails, so the demo never breaks. Pass useNomba:false to force mock.
-  // The VA is held under the merchant's business name (the beneficiary the payer sees), not the payer's.
+  // The VA is held under the TENANT's business name (the beneficiary the payer sees), not the payer's.
+  const businessName = session.tenant.businessName;
   let va = {
     acctNumber: String(3000000000 + Math.floor(Math.random() * 999999999)).slice(0, 10),
-    acctName: `${BUSINESS_NAME}/PaidUp`,
+    acctName: `${businessName}/PaidUp`,
     bankName: "Nombank MFB",
   };
   let live = false;
 
   if (useNomba && nombaConfigured()) {
     try {
-      const created = await createVirtualAccount({ accountRef: ref, accountName: BUSINESS_NAME });
+      const created = await createVirtualAccount({ accountRef: ref, accountName: businessName });
       va = { acctNumber: created.acctNumber, acctName: created.acctName, bankName: created.bankName };
       live = true;
     } catch {
@@ -49,7 +55,7 @@ export async function POST(req: NextRequest) {
   }
 
   const invoice = createInvoice({
-    ref, customer, description: description || "Invoice", amount,
+    tenantId: session.tid, ref, customer, description: description || "Invoice", amount,
     acctNumber: va.acctNumber, acctName: va.acctName, bankName: va.bankName,
   });
   return NextResponse.json({ invoice, live }, { status: 201 });

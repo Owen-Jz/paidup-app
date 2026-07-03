@@ -1,5 +1,14 @@
 # PaidUp — Rubric Gap Audit & Backlog
 
+> **2026-07-03 — #16 (no auth) CLOSED for real.** The opt-in shared-password gate was replaced with
+> **multi-tenant authentication**: self-serve signup (`/signup`), scrypt-hashed passwords with per-user
+> salts, stateless HMAC-signed session cookies (8h, `SESSION_SECRET`, tokenVersion revocation), a
+> fail-closed middleware over `/app` + `/get-started` + `/api` (webhook/login/signup/logout stay public),
+> and **`tenantId` scoping on every ledger record and every API route** — enforced in the store and
+> covered by a dedicated isolation test suite (cross-tenant read/assign/refund/bounce all refused).
+> Seed data lives in a demo workspace (`demo@paidup.app` / `LedgerDemo2026`); fresh signups get an
+> empty isolated ledger. Deferred (v1): email verification, password reset, team members. 123/123 tests.
+
 > **Iteration: 20/20 — 20-CAP LOOP COMPLETE (STOPPED).** Hard cap reached; AI-moat backlog done or
 > consciously pruned, and a fresh re-audit + moat scan surfaces nothing that clears the "good→wins" bar.
 > See the **🏁 Final summary — 20-iteration AI-moat loop** below. (The original 10-iteration summary is

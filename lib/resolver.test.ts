@@ -9,12 +9,12 @@ const mockChat = (pick: unknown) => (async () => pick) as any;
 
 function inv(id: string, customer: string, amount: number, paid = 0, status: Invoice["status"] = "awaiting"): Invoice {
   return {
-    id, customer, description: "", amount, paid, status, createdAt: "",
+    id, tenantId: "ten_test", customer, description: "", amount, paid, status, createdAt: "",
     acctNumber: "0000000000", acctName: "x", bankName: "y", payments: [],
   };
 }
 function ev(narration: string, amount: number, customer = "UNKNOWN SENDER"): FeedEvent {
-  return { id: "tx1", invoiceId: null, customer, amount, narration, outcome: "quarantine", time: "" };
+  return { id: "tx1", tenantId: "ten_test", invoiceId: null, customer, amount, narration, outcome: "quarantine", time: "" };
 }
 
 const BOOK = [

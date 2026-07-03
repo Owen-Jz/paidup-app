@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getInvoice, markRefunded } from "@/lib/store";
+import { getTenantInvoice, markRefunded } from "@/lib/store";
+import { requireSession } from "@/lib/session";
 import { transferToBank, lookupBankAccount, nombaConfigured } from "@/lib/nomba";
 import { parseJsonBody, reqString } from "@/lib/validate";
 
@@ -9,13 +10,16 @@ export const dynamic = "force-dynamic";
 // banks -> lookup (confirm name) -> /v2/transfers/bank, with a STABLE idempotency key.
 // Falls back to a recorded demo refund if Nomba isn't configured or the transfer fails.
 export async function POST(req: NextRequest) {
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const parsed = parseJsonBody(await req.text());
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   const idR = reqString((parsed.data as { invoiceId?: unknown }).invoiceId, "invoiceId", 40);
   if (!idR.ok) return NextResponse.json({ error: idR.error }, { status: 400 });
   const invoiceId = idR.value;
 
-  const inv = getInvoice(invoiceId);
+  // Tenant-scoped lookup: another workspace's invoice reads as "not found", never theirs to refund.
+  const inv = getTenantInvoice(invoiceId, session.tid);
   if (!inv) return NextResponse.json({ error: "invoice not found" }, { status: 404 });
   if (inv.status !== "overpaid") return NextResponse.json({ error: "invoice is not overpaid" }, { status: 400 });
 
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Reached when: the transfer settled (live), OR this is an explicit demo / unconfigured build.
-  const result = markRefunded(invoiceId);
+  const result = markRefunded(invoiceId, session.tid);
   if (!result) return NextResponse.json({ error: "could not refund" }, { status: 500 });
   return NextResponse.json({ ok: true, refunded: result.refunded, live });
 }

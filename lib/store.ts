@@ -8,7 +8,8 @@ import path from "path";
 import crypto from "crypto";
 import { classify, isValidAmount, reverse } from "./reconcile.ts";
 import { appendEntry, verifyChain, type AuditEntry } from "./audit.ts";
-import type { Invoice, FeedEvent, Payment, PaymentOutcome } from "./types";
+import { hashPassword } from "./password.ts";
+import type { Invoice, FeedEvent, Payment, PaymentOutcome, Tenant, User } from "./types";
 
 interface StoreShape {
   invoices: Map<string, Invoice>;
@@ -16,11 +17,36 @@ interface StoreShape {
   seenTx: Set<string>;
   seq: number;
   audit: AuditEntry[];
+  tenants: Map<string, Tenant>;
+  users: Map<string, User>;
 }
 
 /** Append a tamper-evident audit entry for a money-affecting action (M3). Secret-free detail. */
-function recordAudit(s: StoreShape, type: string, detail: string, time: string): void {
-  s.audit.push(appendEntry(s.audit, type, detail, time));
+function recordAudit(s: StoreShape, type: string, detail: string, time: string, tenantId?: string): void {
+  s.audit.push(appendEntry(s.audit, type, detail, time, tenantId));
+}
+
+// The pre-created demo workspace. Seed data lives here, and it's the fallback owner for money that
+// arrives with no matching invoice (the operator resolves it). Judges log in with the demo
+// credentials below (documented in DEMO.md); fresh signups get their own empty, isolated tenant.
+export const DEMO_TENANT_ID = "ten_demo";
+export const DEMO_EMAIL = "demo@paidup.app";
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "LedgerDemo2026";
+
+/** Create the demo tenant + owner user if missing (fresh seed OR a pre-tenancy ledger migration). */
+function ensureDemoTenant(s: StoreShape): void {
+  if (!s.tenants.has(DEMO_TENANT_ID)) {
+    s.tenants.set(DEMO_TENANT_ID, {
+      id: DEMO_TENANT_ID, businessName: BUSINESS_NAME, createdAt: new Date().toISOString(),
+    });
+  }
+  const hasDemoUser = [...s.users.values()].some((u) => u.tenantId === DEMO_TENANT_ID);
+  if (!hasDemoUser) {
+    s.users.set("usr_demo", {
+      id: "usr_demo", tenantId: DEMO_TENANT_ID, email: DEMO_EMAIL,
+      passwordHash: hashPassword(DEMO_PASSWORD), tokenVersion: 1, createdAt: new Date().toISOString(),
+    });
+  }
 }
 
 /**
@@ -54,7 +80,7 @@ function seed(): StoreShape {
     id: string, customer: string, description: string, amount: number,
     acctNumber: string, status: Invoice["status"], paid: number
   ): Invoice => ({
-    id, customer, description, amount, paid, status,
+    id, tenantId: DEMO_TENANT_ID, customer, description, amount, paid, status,
     createdAt: iso(180), dueLabel: "Due in 5d",
     acctNumber, acctName: `${BUSINESS_NAME}/PaidUp`, bankName: "Nombank MFB",
     payments: [], payToken: `tok_${id.replace(/-/g, "").toLowerCase()}`, // stable demo link for seeds
@@ -71,10 +97,10 @@ function seed(): StoreShape {
   ].forEach((i) => invoices.set(i.id, i));
 
   const events: FeedEvent[] = [
-    { id: "tx_seed1", invoiceId: "INV-1042", customer: "Dangote Cement Plc", amount: 450000, bankName: "GTBank", narration: "Transfer from Dangote", outcome: "paid", time: iso(8) },
-    { id: "tx_seed2", invoiceId: "INV-1046", customer: "MTN Nigeria", amount: 1300000, bankName: "Zenith Bank", narration: "Transfer from MTN", outcome: "overpaid", time: iso(22) },
-    { id: "tx_seed3", invoiceId: "INV-1043", customer: "Jumia Nigeria", amount: 70000, bankName: "Opay", narration: "Part payment", outcome: "partial", time: iso(40) },
-    { id: "tx_seed4", invoiceId: null, customer: "UNKNOWN SENDER", amount: 55000, bankName: "Kuda", narration: '"Pymt for inv 1050"', outcome: "quarantine", time: iso(55) },
+    { id: "tx_seed1", tenantId: DEMO_TENANT_ID, invoiceId: "INV-1042", customer: "Dangote Cement Plc", amount: 450000, bankName: "GTBank", narration: "Transfer from Dangote", outcome: "paid", time: iso(8) },
+    { id: "tx_seed2", tenantId: DEMO_TENANT_ID, invoiceId: "INV-1046", customer: "MTN Nigeria", amount: 1300000, bankName: "Zenith Bank", narration: "Transfer from MTN", outcome: "overpaid", time: iso(22) },
+    { id: "tx_seed3", tenantId: DEMO_TENANT_ID, invoiceId: "INV-1043", customer: "Jumia Nigeria", amount: 70000, bankName: "Opay", narration: "Part payment", outcome: "partial", time: iso(40) },
+    { id: "tx_seed4", tenantId: DEMO_TENANT_ID, invoiceId: null, customer: "UNKNOWN SENDER", amount: 55000, bankName: "Kuda", narration: '"Pymt for inv 1050"', outcome: "quarantine", time: iso(55) },
   ];
   // seed illustrative payment histories so the statement view is populated
   invoices.get("INV-1043")!.payments.push({
@@ -106,12 +132,20 @@ function seed(): StoreShape {
   }
 
   // tx_seed5 is INV-1047's seeded payment — include it so a replayed webhook can't double-credit it.
-  return { invoices, events, seenTx: new Set(["tx_seed1", "tx_seed2", "tx_seed3", "tx_seed4", "tx_seed5"]), seq: 1, audit };
+  const s: StoreShape = {
+    invoices, events, seenTx: new Set(["tx_seed1", "tx_seed2", "tx_seed3", "tx_seed4", "tx_seed5"]),
+    seq: 1, audit, tenants: new Map(), users: new Map(),
+  };
+  ensureDemoTenant(s);
+  return s;
 }
 
 function load(): StoreShape | null {
   if (!fs.existsSync(DATA_FILE)) return null; // first run → seed a fresh ledger (expected)
-  let raw: { invoices: Invoice[]; events?: FeedEvent[]; seenTx?: string[]; seq?: number; audit?: AuditEntry[] };
+  let raw: {
+    invoices: Invoice[]; events?: FeedEvent[]; seenTx?: string[]; seq?: number; audit?: AuditEntry[];
+    tenants?: Tenant[]; users?: User[];
+  };
   try {
     raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
   } catch {
@@ -122,13 +156,20 @@ function load(): StoreShape | null {
     try { fs.renameSync(DATA_FILE, backup); } catch { /* best-effort */ }
     throw new Error(`Ledger at ${DATA_FILE} is corrupt; backed up to ${backup}. Refusing to reseed over real data — restore the backup or delete it to reset.`);
   }
-  return {
+  const s: StoreShape = {
     invoices: new Map((raw.invoices as Invoice[]).map((i) => [i.id, i])),
     events: raw.events ?? [],
     seenTx: new Set(raw.seenTx ?? []),
     seq: raw.seq ?? 1,
     audit: raw.audit ?? [],
+    tenants: new Map((raw.tenants ?? []).map((t) => [t.id, t])),
+    users: new Map((raw.users ?? []).map((u) => [u.id, u])),
   };
+  // Migrate a pre-tenancy ledger in place: everything unowned belongs to the demo workspace.
+  for (const inv of s.invoices.values()) if (!inv.tenantId) inv.tenantId = DEMO_TENANT_ID;
+  for (const ev of s.events) if (!ev.tenantId) ev.tenantId = DEMO_TENANT_ID;
+  ensureDemoTenant(s);
+  return s;
 }
 
 function persist(s: StoreShape): void {
@@ -145,6 +186,8 @@ function persist(s: StoreShape): void {
       seenTx: [...s.seenTx],
       seq: s.seq,
       audit: s.audit,
+      tenants: [...s.tenants.values()],
+      users: [...s.users.values()],
     }));
     fs.renameSync(tmp, DATA_FILE);
   } catch {
@@ -156,25 +199,79 @@ function store(): StoreShape {
   if (!g.__paidup) {
     const loaded = load();
     g.__paidup = loaded ?? seed();
-    if (!loaded) persist(g.__paidup);
+    persist(g.__paidup); // persists a fresh seed AND any load-time tenancy migration
   }
   return g.__paidup;
 }
 
-export function listInvoices(): Invoice[] {
-  return [...store().invoices.values()].sort((a, b) => a.id.localeCompare(b.id));
+/**
+ * Every read is scoped to one tenant — tenant A can never see B's money. Callers pass the tenantId
+ * extracted from the verified session (lib/session.ts); only the webhook path (applyPayment /
+ * reversePayment) is global, because Nomba doesn't log in — it routes by aliasAccountReference.
+ */
+export function listInvoices(tenantId: string): Invoice[] {
+  return [...store().invoices.values()]
+    .filter((i) => i.tenantId === tenantId)
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
+/** Global lookup (webhook/reversal matching). Tenant-checked callers use getTenantInvoice. */
 export function getInvoice(id: string): Invoice | undefined {
   return store().invoices.get(id);
 }
-export function listEvents(limit = 20): FeedEvent[] {
-  return store().events.slice(0, limit);
+/** Tenant-checked invoice lookup — returns undefined for another tenant's invoice (reads as 404). */
+export function getTenantInvoice(id: string, tenantId: string): Invoice | undefined {
+  const inv = store().invoices.get(id);
+  return inv && inv.tenantId === tenantId ? inv : undefined;
 }
-export function listQuarantine(): FeedEvent[] {
-  return store().events.filter((e) => e.outcome === "quarantine");
+export function listEvents(limit = 20, tenantId?: string): FeedEvent[] {
+  const evs = tenantId ? store().events.filter((e) => e.tenantId === tenantId) : store().events;
+  return evs.slice(0, limit);
+}
+export function listQuarantine(tenantId?: string): FeedEvent[] {
+  return store().events.filter(
+    (e) => e.outcome === "quarantine" && (!tenantId || e.tenantId === tenantId),
+  );
+}
+
+// ---- Tenants & users (multi-tenant auth) -----------------------------------------------------
+
+export function getTenant(id: string): Tenant | undefined {
+  return store().tenants.get(id);
+}
+export function getUserById(id: string): User | undefined {
+  return store().users.get(id);
+}
+export function getUserByEmail(email: string): User | undefined {
+  const needle = email.trim().toLowerCase();
+  for (const u of store().users.values()) if (u.email === needle) return u;
+  return undefined;
+}
+
+/** Self-serve signup: mint an isolated tenant + its owner user. Rejects a duplicate email. */
+export function createTenantWithOwner(input: {
+  businessName: string; email: string; passwordHash: string;
+}): { tenant: Tenant; user: User } | { error: "email_taken" } {
+  const s = store();
+  const email = input.email.trim().toLowerCase();
+  for (const u of s.users.values()) if (u.email === email) return { error: "email_taken" };
+  const now = new Date().toISOString();
+  const tenant: Tenant = {
+    id: `ten_${crypto.randomBytes(8).toString("hex")}`,
+    businessName: input.businessName.trim(), createdAt: now,
+  };
+  const user: User = {
+    id: `usr_${crypto.randomBytes(8).toString("hex")}`,
+    tenantId: tenant.id, email, passwordHash: input.passwordHash, tokenVersion: 1, createdAt: now,
+  };
+  s.tenants.set(tenant.id, tenant);
+  s.users.set(user.id, user);
+  recordAudit(s, "tenant.created", `${tenant.id} ${tenant.businessName}`, now, tenant.id);
+  persist(s);
+  return { tenant, user };
 }
 
 export interface CreateInvoiceInput {
+  tenantId: string;
   customer: string; description: string; amount: number;
   acctNumber: string; acctName: string; bankName: string; ref?: string;
 }
@@ -190,13 +287,13 @@ export function createInvoice(input: CreateInvoiceInput): Invoice {
   let id = input.ref ?? `INV-${1100 + s.seq++}`;
   if (input.ref && s.invoices.has(id)) id = `INV-${1100 + s.seq++}`;
   const invoice: Invoice = {
-    id, customer: input.customer, description: input.description, amount: input.amount,
+    id, tenantId: input.tenantId, customer: input.customer, description: input.description, amount: input.amount,
     paid: 0, status: "awaiting", createdAt: new Date().toISOString(), dueLabel: "Due in 7d",
     acctNumber: input.acctNumber, acctName: input.acctName, bankName: input.bankName, payments: [],
     payToken: `pay_${crypto.randomBytes(9).toString("hex")}`, // unguessable public link
   };
   s.invoices.set(id, invoice);
-  recordAudit(s, "invoice.created", `${id} ${input.customer} ${input.amount}`, invoice.createdAt);
+  recordAudit(s, "invoice.created", `${id} ${input.customer} ${input.amount}`, invoice.createdAt, input.tenantId);
   persist(s);
   return invoice;
 }
@@ -226,6 +323,10 @@ export interface IncomingPayment {
   bankName?: string;
   narration?: string;
   time?: string;
+  // Owner for UNMATCHED money (no invoice → no tenant to derive). The webhook leaves it unset
+  // (defaults to the demo/operator workspace, which owns the shared Nomba sub-account); simulate
+  // and sync pass the calling session's tenant. Matched payments always take the invoice's tenant.
+  fallbackTenantId?: string;
 }
 
 export interface ApplyResult {
@@ -248,7 +349,7 @@ export function applyPayment(p: IncomingPayment): ApplyResult {
 
   if (s.seenTx.has(p.transactionId)) {
     const existing = s.events.find((e) => e.id === p.transactionId);
-    return { outcome: "duplicate", invoiceId: existing?.invoiceId ?? null, event: existing ?? mkEvent(p, null, "duplicate", time) };
+    return { outcome: "duplicate", invoiceId: existing?.invoiceId ?? null, event: existing ?? mkEvent(p, null, "duplicate", time, p.fallbackTenantId ?? DEMO_TENANT_ID) };
   }
 
   const invoice = p.aliasAccountReference ? s.invoices.get(p.aliasAccountReference) : undefined;
@@ -258,7 +359,7 @@ export function applyPayment(p: IncomingPayment): ApplyResult {
   let invoiceId: string | null;
 
   if (!invoice) {
-    event = mkEvent(p, null, "quarantine", time);
+    event = mkEvent(p, null, "quarantine", time, p.fallbackTenantId ?? DEMO_TENANT_ID);
     outcome = "quarantine";
     invoiceId = null;
   } else {
@@ -270,7 +371,7 @@ export function applyPayment(p: IncomingPayment): ApplyResult {
       senderAccountNumber: p.senderAccountNumber, senderBankCode: p.senderBankCode,
       bankName: p.bankName, narration: p.narration, time, outcome: c.status,
     });
-    event = mkEvent(p, invoice.id, c.status, time, invoice.customer);
+    event = mkEvent(p, invoice.id, c.status, time, invoice.tenantId, invoice.customer);
     outcome = c.status;
     invoiceId = invoice.id;
   }
@@ -278,7 +379,7 @@ export function applyPayment(p: IncomingPayment): ApplyResult {
   s.events.unshift(event);
   capEvents(s);
   s.seenTx.add(p.transactionId); // commit dedupe only after success
-  recordAudit(s, `payment.${outcome}`, `${p.transactionId} ${invoiceId ?? "unmatched"} ${p.amount}`, time);
+  recordAudit(s, `payment.${outcome}`, `${p.transactionId} ${invoiceId ?? "unmatched"} ${p.amount}`, time, event.tenantId);
   persist(s);
   return { outcome, invoiceId, event };
 }
@@ -306,7 +407,7 @@ export function reversePayment(originalTransactionId: string, time?: string): Ap
     const event = mkReversalEvent(inv, p, when);
     s.events.unshift(event);
     capEvents(s);
-    recordAudit(s, "payment.reversed", `${originalTransactionId} ${inv.id} ${p.amount}`, when);
+    recordAudit(s, "payment.reversed", `${originalTransactionId} ${inv.id} ${p.amount}`, when, inv.tenantId);
     persist(s);
     return { outcome: "reversed", invoiceId: inv.id, event };
   }
@@ -317,7 +418,7 @@ export function reversePayment(originalTransactionId: string, time?: string): Ap
   const existingRev = s.events.find((e) => e.id === revId);
   if (existingRev) return { outcome: "duplicate", invoiceId: null, event: existingRev };
   const event: FeedEvent = {
-    id: revId, invoiceId: null, customer: "Reversal", amount: 0,
+    id: revId, tenantId: DEMO_TENANT_ID, invoiceId: null, customer: "Reversal", amount: 0,
     narration: `Reversal for unknown transaction ${originalTransactionId}`, outcome: "reversed", time: when,
   };
   s.events.unshift(event);
@@ -329,34 +430,35 @@ export function reversePayment(originalTransactionId: string, time?: string): Ap
 
 function mkReversalEvent(inv: Invoice, p: Payment, time: string): FeedEvent {
   return {
-    id: `rev_${p.transactionId}`, invoiceId: inv.id, customer: inv.customer, amount: p.amount,
+    id: `rev_${p.transactionId}`, tenantId: inv.tenantId, invoiceId: inv.id, customer: inv.customer, amount: p.amount,
     bankName: p.bankName, narration: `Payment reversed — ₦${Math.round(p.amount).toLocaleString()} clawed back`,
     outcome: "reversed", time,
   };
 }
 
-/** Mark an overpaid invoice's surplus as refunded (after a successful payout). */
-export function markRefunded(invoiceId: string): { invoice: Invoice; refunded: number } | null {
+/** Mark an overpaid invoice's surplus as refunded (after a successful payout). Tenant-enforced. */
+export function markRefunded(invoiceId: string, tenantId?: string): { invoice: Invoice; refunded: number } | null {
   const s = store();
   const inv = s.invoices.get(invoiceId);
   if (!inv || inv.status !== "overpaid") return null;
+  if (tenantId && inv.tenantId !== tenantId) return null; // never refund another tenant's invoice
   const refunded = Math.round((inv.paid - inv.amount) * 100) / 100;
   inv.paid = inv.amount;
   inv.status = "paid";
   const refundTime = new Date().toISOString();
   s.events.unshift({
-    id: `refund_${invoiceId}_${crypto.randomBytes(4).toString("hex")}`, invoiceId, customer: inv.customer, amount: refunded,
+    id: `refund_${invoiceId}_${crypto.randomBytes(4).toString("hex")}`, tenantId: inv.tenantId, invoiceId, customer: inv.customer, amount: refunded,
     bankName: inv.payments[inv.payments.length - 1]?.bankName, narration: "Refund sent to payer",
     outcome: "refunded", time: refundTime,
   });
-  recordAudit(s, "refund", `${invoiceId} ${refunded}`, refundTime);
+  recordAudit(s, "refund", `${invoiceId} ${refunded}`, refundTime, inv.tenantId);
   persist(s);
   return { invoice: inv, refunded };
 }
 
-function mkEvent(p: IncomingPayment, invoiceId: string | null, outcome: PaymentOutcome, time: string, customer?: string): FeedEvent {
+function mkEvent(p: IncomingPayment, invoiceId: string | null, outcome: PaymentOutcome, time: string, tenantId: string, customer?: string): FeedEvent {
   return {
-    id: p.transactionId, invoiceId, customer: customer ?? p.sender, amount: p.amount,
+    id: p.transactionId, tenantId, invoiceId, customer: customer ?? p.sender, amount: p.amount,
     bankName: p.bankName, narration: p.narration ?? `Transfer from ${p.sender}`, outcome, time,
     senderAccountNumber: p.senderAccountNumber, senderBankCode: p.senderBankCode,
   };
@@ -372,13 +474,16 @@ export function getEvent(transactionId: string): FeedEvent | undefined {
  * rewrites the event from quarantine → its real outcome. The transactionId is already in
  * seenTx (added when it quarantined), so this never double-counts. (GAPS #9 — unmatched handling.)
  */
-export function resolveQuarantineToInvoice(transactionId: string, invoiceId: string):
+export function resolveQuarantineToInvoice(transactionId: string, invoiceId: string, tenantId?: string):
   { invoice: Invoice; outcome: PaymentOutcome } | null {
   const s = store();
   const ev = s.events.find((e) => e.id === transactionId);
   if (!ev || ev.outcome !== "quarantine") return null;
   const inv = s.invoices.get(invoiceId);
   if (!inv) return null;
+  // Tenant isolation: the caller must own BOTH the quarantined payment and the target invoice —
+  // money can never be assigned into (or out of) another workspace.
+  if (tenantId && (ev.tenantId !== tenantId || inv.tenantId !== tenantId)) return null;
 
   const c = classify(inv.amount, inv.paid, ev.amount);
   inv.paid = c.newPaid;
@@ -390,19 +495,21 @@ export function resolveQuarantineToInvoice(transactionId: string, invoiceId: str
   });
   ev.invoiceId = inv.id;
   ev.outcome = c.status;
-  recordAudit(s, `quarantine.assigned.${c.status}`, `${transactionId} ${inv.id} ${ev.amount}`, ev.time);
+  ev.tenantId = inv.tenantId; // the money now provably belongs to the invoice's workspace
+  recordAudit(s, `quarantine.assigned.${c.status}`, `${transactionId} ${inv.id} ${ev.amount}`, ev.time, inv.tenantId);
   persist(s);
   return { invoice: inv, outcome: c.status };
 }
 
-/** Mark a quarantined payment as bounced back to the sender (after a successful payout). */
-export function markQuarantineBounced(transactionId: string): FeedEvent | null {
+/** Mark a quarantined payment as bounced back to the sender (after a successful payout). Tenant-enforced. */
+export function markQuarantineBounced(transactionId: string, tenantId?: string): FeedEvent | null {
   const s = store();
   const ev = s.events.find((e) => e.id === transactionId);
   if (!ev || ev.outcome !== "quarantine") return null;
+  if (tenantId && ev.tenantId !== tenantId) return null; // can't bounce another workspace's money
   ev.outcome = "refunded";
   ev.narration = "Bounced back to sender — no matching invoice";
-  recordAudit(s, "quarantine.bounced", `${transactionId} ${ev.amount}`, new Date().toISOString());
+  recordAudit(s, "quarantine.bounced", `${transactionId} ${ev.amount}`, new Date().toISOString(), ev.tenantId);
   persist(s);
   return ev;
 }

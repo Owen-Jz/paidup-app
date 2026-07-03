@@ -10,6 +10,9 @@ cd paidup
 rm -f .data/ledger.json     # reset to the clean seed ledger
 npm run dev                 # http://localhost:3100
 ```
+- **Sign in first** — the app is a real multi-tenant SaaS now. The populated demo workspace:
+  **`demo@paidup.app` / `LedgerDemo2026`** (override the password with `DEMO_PASSWORD`). Or sign up
+  fresh at `/signup` to show an empty, isolated workspace. `.env.local` needs `SESSION_SECRET` set.
 - `.env.local` should have the TEST Nomba creds + `NOMBA_WEBHOOK_SECRET=<your Nomba webhook signing key>` + `MINIMAX_API_KEY`
   (so the **✨ AI LIVE** pill shows and the AI features are real). If the AI key is absent, everything still
   works — the app falls back to the deterministic engine and the pill reads **AI OFF · RULES**. The demo never breaks.
