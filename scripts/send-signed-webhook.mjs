@@ -10,7 +10,11 @@ import crypto from "node:crypto";
 const url = process.argv[2] || "http://localhost:3100/api/webhook";
 const ref = process.argv[3] || "INV-1044";
 const amount = Number(process.argv[4] || 75500);
-const secret = process.env.NOMBA_WEBHOOK_SECRET || "<your Nomba webhook signing key>";
+const secret = process.env.NOMBA_WEBHOOK_SECRET;
+if (!secret) {
+  console.error("Set NOMBA_WEBHOOK_SECRET (your Nomba webhook signing key) before running.");
+  process.exit(1);
+}
 
 const now = new Date().toISOString();
 const ts = now; // the nomba-timestamp header — bound into the signature, checked for freshness
