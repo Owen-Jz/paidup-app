@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useDashboard, Chip, SyncPanel, CountUp } from "@/components/dashboard";
+import { useDashboard, Chip, SyncStatus, CountUp } from "@/components/dashboard";
 import { NGN, eventIcon, timeAgo, shortName } from "@/lib/format";
 
 export default function LivePage() {
@@ -70,6 +70,7 @@ export default function LivePage() {
           <div className="fh">
             <span className="live"><i />LIVE</span>
             <span style={{ color: "var(--faint)", fontSize: 12, fontFamily: "var(--mono)" }}>payment_success webhooks</span>
+            <span style={{ marginLeft: "auto" }}><SyncStatus sync={sync} /></span>
           </div>
           {events.map((e) => {
             const isFlash = flashId === (e.invoiceId ?? e.id);
@@ -155,7 +156,6 @@ export default function LivePage() {
         </div>
       </div>
 
-      <SyncPanel sync={sync} />
     </main>
   );
 }

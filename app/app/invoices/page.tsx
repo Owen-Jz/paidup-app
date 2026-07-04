@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useDashboard, Chip, SyncPanel } from "@/components/dashboard";
+import { useDashboard, Chip, SyncStatus } from "@/components/dashboard";
 import type { QuarantineItem } from "@/components/dashboard";
 import { NGN, initials, shortName, timeAgo } from "@/lib/format";
 import type { Invoice } from "@/lib/types";
@@ -60,6 +60,7 @@ export default function InvoicesPage() {
       <div>
         <h1 className="h1">Invoices</h1>
         <p className="sub">Every invoice has its own Nomba virtual account. Status updates the instant a transfer arrives.</p>
+        <div style={{ marginTop: 6 }}><SyncStatus sync={sync} /></div>
       </div>
 
       {error && <div className="banner err" role="alert">⚠ Lost connection to the ledger — retrying…</div>}
@@ -180,7 +181,6 @@ export default function InvoicesPage() {
         </table>
       </div>
 
-      <SyncPanel sync={sync} />
       {open && <InvoiceDrawer invoice={open} onClose={() => setOpenId(null)} refund={refund} onDeleted={() => { setOpenId(null); refresh(); }} />}
       {showNew && <NewInvoiceModal onClose={() => setShowNew(false)} onCreated={refresh} />}
     </main>

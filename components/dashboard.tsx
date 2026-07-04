@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Invoice, FeedEvent, PaymentOutcome } from "@/lib/types";
 import type { MatchSuggestion } from "@/lib/resolver";
 import type { Anomaly } from "@/lib/anomaly";
-import { NGN, STATUS_LABEL, STATUS_CLASS } from "@/lib/format";
+import { NGN, STATUS_LABEL, STATUS_CLASS, timeAgo } from "@/lib/format";
 
 export type QuarantineItem = FeedEvent & { suggestion: MatchSuggestion | null };
 export type { Anomaly };
@@ -139,39 +139,70 @@ export function Chip({ status }: { status: PaymentOutcome | Invoice["status"] })
   );
 }
 
-// The simulate-payment panel is retired: with production credentials wired, payments come from
-// real bank transfers (or the signed-webhook script for scripted demos — scripts/send-signed-webhook.mjs).
-// What remains is the judged RELIABILITY feature: the requery backstop.
-export function SyncPanel({ sync }: {
+// The reconciliation backstop, automated. Webhooks are not guaranteed delivery (Nomba retries 5×
+// then gives up), so the dashboard silently requeries Nomba on load and every 5 minutes, repairing
+// the ledger if anything was missed — idempotent, so it can only fill holes, never double-credit.
+// Rendered as a quiet status note in the main flow ("Last synced …"), not an ops button.
+const SYNC_EVERY_MS = 5 * 60_000;
+
+export function SyncStatus({ sync }: {
   sync: () => Promise<{ configured: boolean; applied?: number; duplicates?: number; scanned?: number; message?: string } | null>;
 }) {
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [state, setState] = useState<"syncing" | "ok" | "off" | "err">("syncing");
+  const [lastAt, setLastAt] = useState<number | null>(null);
+  const [recovered, setRecovered] = useState(0);
+  const [, setTick] = useState(0); // re-render so "Xm ago" stays honest
+  // `sync` is recreated on every poll render — hold it in a ref so the schedule effect can be
+  // mount-only (otherwise each 2s poll would reset the interval and re-fire a sync).
+  const syncRef = useRef(sync);
+  useEffect(() => { syncRef.current = sync; });
+  const runningRef = useRef(false);
 
-  const runSync = async () => {
-    setSyncing(true); setSyncMsg(null);
+  const run = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setState("syncing");
     try {
-      const res = await sync();
-      if (!res) setSyncMsg("Sync failed — check server logs.");
-      else if (!res.configured) setSyncMsg("Live-only: set Nomba creds to sync.");
-      else setSyncMsg(`Reconciled ${res.scanned ?? 0} credit(s): ${res.applied ?? 0} applied · ${res.duplicates ?? 0} already seen.`);
+      const res = await syncRef.current();
+      if (!res) setState("err");
+      else if (!res.configured) setState("off");
+      else {
+        setLastAt(Date.now());
+        setRecovered(res.applied ?? 0);
+        setState("ok");
+      }
+    } catch {
+      setState("err");
     } finally {
-      setSyncing(false);
+      runningRef.current = false;
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    run();
+    const iv = setInterval(run, SYNC_EVERY_MS);
+    const tick = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => { clearInterval(iv); clearInterval(tick); };
+  }, [run]);
+
+  const ago = lastAt ? timeAgo(new Date(lastAt).toISOString()) : null;
+  const linkStyle = {
+    background: "none", border: "none", padding: 0, cursor: "pointer",
+    font: "inherit", color: "inherit", textDecoration: "underline",
+  } as const;
 
   return (
-    <div className="sim">
-      <h5>🔄 Reconciliation backstop</h5>
-      <div className="body">
-        <div className="sync-row" style={{ marginTop: 0 }}>
-          <button className="btn sync" onClick={runSync} disabled={syncing}>
-            {syncing ? "⟳ Reconciling…" : "🔄 Sync from Nomba"}
-          </button>
-          <div className="hint">Re-pulls credits from Nomba and repairs the ledger if a webhook was ever missed. Idempotent — safe to run anytime.</div>
-          {syncMsg && <div className="sync-msg mono">{syncMsg}</div>}
-        </div>
-      </div>
-    </div>
+    <span className="mono" style={{ fontSize: 12, color: "var(--faint)", whiteSpace: "nowrap" }} role="status">
+      {state === "syncing" && <>⟳ syncing with Nomba…</>}
+      {state === "ok" && (
+        <>
+          ✓ last synced {ago}
+          {recovered > 0 && <span style={{ color: "var(--paid)" }}> · recovered {recovered} missed credit{recovered > 1 ? "s" : ""}</span>}
+          {" "}<button style={linkStyle} onClick={run} title="Requery Nomba now (idempotent — can only repair, never double-credit)">sync now</button>
+        </>
+      )}
+      {state === "err" && <>⚠ sync failed <button style={linkStyle} onClick={run}>retry</button></>}
+      {state === "off" && <>sync off — Nomba creds not set</>}
+    </span>
   );
 }
