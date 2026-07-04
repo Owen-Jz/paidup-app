@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   applyPayment, listInvoices, listEvents, listQuarantine,
   resolveQuarantineToInvoice, markRefunded, markQuarantineBounced, getTenantInvoice,
-  createTenantWithOwner, getUserByEmail,
+  createTenantWithOwner, getUserByEmail, deleteInvoice,
 } from "./store.ts";
 import type { Invoice, FeedEvent } from "./types.ts";
 
@@ -97,6 +97,20 @@ test("getTenantInvoice: another tenant's invoice reads as not-found", () => {
   const { a } = fixture();
   assert.equal(getTenantInvoice(a.id, "ten_b"), undefined);
   assert.equal(getTenantInvoice(a.id, "ten_a")?.id, a.id);
+});
+
+test("deleteInvoice: only the owner can delete, and only while the invoice is clean", () => {
+  const { a, b } = fixture();
+  // Cross-tenant delete refused (reads as not_found — no existence oracle).
+  assert.deepEqual(deleteInvoice(a.id, "ten_b"), { ok: false, reason: "not_found" });
+  // Once money has landed, deletion is refused even for the owner — ledger facts are permanent.
+  applyPayment({ transactionId: "tx_d1", aliasAccountReference: b.id, amount: 10, sender: "B" });
+  assert.deepEqual(deleteInvoice(b.id, "ten_b"), { ok: false, reason: "has_payments" });
+  // A clean invoice deletes fine, and a late payment to its old ref quarantines instead of crediting.
+  assert.deepEqual(deleteInvoice(a.id, "ten_a"), { ok: true });
+  assert.equal(listInvoices("ten_a").length, 0);
+  const late = applyPayment({ transactionId: "tx_d2", aliasAccountReference: a.id, amount: 500, sender: "Late", fallbackTenantId: "ten_a" });
+  assert.equal(late.outcome, "quarantine", "money for a deleted invoice must quarantine, never vanish");
 });
 
 test("signup: duplicate email (case-insensitive) is rejected; lookup is case-insensitive", () => {

@@ -181,7 +181,7 @@ export default function InvoicesPage() {
       </div>
 
       <SimPanel invoices={invoices} simulate={simulate} sync={sync} reverseLast={reverseLast} />
-      {open && <InvoiceDrawer invoice={open} onClose={() => setOpenId(null)} refund={refund} />}
+      {open && <InvoiceDrawer invoice={open} onClose={() => setOpenId(null)} refund={refund} onDeleted={() => { setOpenId(null); refresh(); }} />}
       {showNew && <NewInvoiceModal onClose={() => setShowNew(false)} onCreated={refresh} />}
     </main>
   );
@@ -330,13 +330,26 @@ function QuarantineRow({ event, invoices, onAssign, onBounce }: {
   );
 }
 
-function InvoiceDrawer({ invoice, onClose, refund }: { invoice: Invoice; onClose: () => void; refund: (id: string) => Promise<unknown> }) {
+function InvoiceDrawer({ invoice, onClose, refund, onDeleted }: {
+  invoice: Invoice; onClose: () => void; refund: (id: string) => Promise<unknown>; onDeleted: () => void;
+}) {
   const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [delErr, setDelErr] = useState("");
   const over = invoice.paid > invoice.amount;
   const balance = Math.max(invoice.amount - invoice.paid, 0);
+  // Only a clean invoice (no money ever received) may be deleted — the API enforces this too.
+  const deletable = invoice.payments.length === 0 && invoice.paid === 0;
   const ref = useDialogA11y<HTMLElement>(onClose);
 
   const doRefund = async () => { setBusy(true); await refund(invoice.id); setBusy(false); };
+  const doDelete = async () => {
+    setBusy(true); setDelErr("");
+    const r = await fetch(`/api/invoices?id=${encodeURIComponent(invoice.id)}`, { method: "DELETE" });
+    setBusy(false);
+    if (!r.ok) { setDelErr((await r.json().catch(() => null))?.error || "Could not delete."); return; }
+    onDeleted();
+  };
 
   return (
     <div className="drawer-bg" onClick={onClose}>
@@ -404,6 +417,30 @@ function InvoiceDrawer({ invoice, onClose, refund }: { invoice: Invoice; onClose
             </div>
           ))}
         </div>
+
+        {deletable && (
+          <div style={{ marginTop: 26, paddingTop: 16, borderTop: "1px solid var(--line-2)" }}>
+            {!confirmDel ? (
+              <button className="ghost sm" style={{ color: "var(--attn)" }} onClick={() => setConfirmDel(true)}>
+                🗑 Delete this invoice
+              </button>
+            ) : (
+              <div>
+                <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>
+                  Delete {invoice.id} and free up its reference? The virtual account stops matching —
+                  any late transfer to it lands in Unmatched instead of being lost. This can&apos;t be undone.
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="ghost sm" onClick={() => setConfirmDel(false)}>Keep it</button>
+                  <button className="btn sm" style={{ background: "var(--attn)" }} onClick={doDelete} disabled={busy}>
+                    {busy ? "Deleting…" : "Yes, delete"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {delErr && <div style={{ color: "var(--attn)", fontSize: 12, marginTop: 8 }}>{delErr}</div>}
+          </div>
+        )}
       </aside>
     </div>
   );

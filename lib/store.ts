@@ -298,6 +298,26 @@ export function createInvoice(input: CreateInvoiceInput): Invoice {
   return invoice;
 }
 
+/**
+ * Delete an invoice — ONLY while it's clean. An invoice that has EVER received money (payments on
+ * record, or a non-zero balance) is a ledger fact and cannot be deleted; that would orphan real
+ * money from the audit trail. Note: the Nomba-side virtual account is NOT deleted (the API offers
+ * no reliable suspend — participants get 403s); if money later lands on a deleted invoice's VA,
+ * the webhook finds no matching aliasAccountReference and the payment QUARANTINES — visible,
+ * resolvable, never lost.
+ */
+export function deleteInvoice(id: string, tenantId: string):
+  { ok: true } | { ok: false; reason: "not_found" | "has_payments" } {
+  const s = store();
+  const inv = s.invoices.get(id);
+  if (!inv || inv.tenantId !== tenantId) return { ok: false, reason: "not_found" };
+  if (inv.payments.length > 0 || inv.paid > 0) return { ok: false, reason: "has_payments" };
+  s.invoices.delete(id);
+  recordAudit(s, "invoice.deleted", `${id} ${inv.customer} ${inv.amount}`, new Date().toISOString(), tenantId);
+  persist(s);
+  return { ok: true };
+}
+
 /** The append-only audit chain (read-only copy) + its integrity verdict (M3). */
 export function getAudit(): AuditEntry[] {
   return [...store().audit];

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createInvoice, listInvoices, nextInvoiceRef } from "@/lib/store";
+import { createInvoice, deleteInvoice, listInvoices, nextInvoiceRef } from "@/lib/store";
 import { requireSession } from "@/lib/session";
 import { createVirtualAccount, nombaConfigured } from "@/lib/nomba";
 import { parseJsonBody, reqString, optString, posAmount } from "@/lib/validate";
@@ -59,4 +59,22 @@ export async function POST(req: NextRequest) {
     acctNumber: va.acctNumber, acctName: va.acctName, bankName: va.bankName,
   });
   return NextResponse.json({ invoice, live }, { status: 201 });
+}
+
+// Delete a clean (never-paid) invoice: /api/invoices?id=INV-x. An invoice with money on record is
+// a ledger fact and refuses deletion (409) — the store enforces this, not just the UI.
+export async function DELETE(req: NextRequest) {
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const idR = reqString(req.nextUrl.searchParams.get("id"), "id", 40);
+  if (!idR.ok) return NextResponse.json({ error: idR.error }, { status: 400 });
+
+  const r = deleteInvoice(idR.value, session.tid);
+  if (!r.ok) {
+    if (r.reason === "has_payments") {
+      return NextResponse.json({ error: "this invoice has received money — it can't be deleted, only reconciled" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "invoice not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
 }
