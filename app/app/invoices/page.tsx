@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useDashboard, Chip, SimPanel } from "@/components/dashboard";
+import { useDashboard, Chip, SyncPanel } from "@/components/dashboard";
 import type { QuarantineItem } from "@/components/dashboard";
 import { NGN, initials, shortName, timeAgo } from "@/lib/format";
 import type { Invoice } from "@/lib/types";
@@ -9,7 +9,7 @@ import type { Invoice } from "@/lib/types";
 type Filter = "all" | "open" | "paid" | "attn";
 
 export default function InvoicesPage() {
-  const { invoices, quarantine, anomalies, kpis, flashId, loading, error, simulate, reverseLast, refresh, refund, sync, resolveQuarantine, bounceQuarantine } = useDashboard();
+  const { invoices, quarantine, anomalies, kpis, flashId, loading, error, refresh, refund, sync, resolveQuarantine, bounceQuarantine } = useDashboard();
   const [filter, setFilter] = useState<Filter>("all");
   // Allow deep-linking to a tab (e.g. the live feed's "Needs attention" → ?filter=attn).
   // Read from the URL on mount only, so it doesn't force this page out of static generation.
@@ -180,7 +180,7 @@ export default function InvoicesPage() {
         </table>
       </div>
 
-      <SimPanel invoices={invoices} simulate={simulate} sync={sync} reverseLast={reverseLast} />
+      <SyncPanel sync={sync} />
       {open && <InvoiceDrawer invoice={open} onClose={() => setOpenId(null)} refund={refund} onDeleted={() => { setOpenId(null); refresh(); }} />}
       {showNew && <NewInvoiceModal onClose={() => setShowNew(false)} onCreated={refresh} />}
     </main>

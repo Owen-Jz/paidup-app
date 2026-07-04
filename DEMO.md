@@ -47,10 +47,13 @@ Show the real path first, then the full range:
    ```
    → it passes the **9-field signature check** and INV-1044 flips to **paid** live in the feed. This is the
    *actual* Nomba webhook path (verified HMAC, matched by `aliasAccountReference`) — **not** a demo shortcut.
-   *(A real ≤₦150 bank transfer into a freshly minted sandbox VA triggers the identical flow; the script
-   is the reliable stand-in since sandbox VAs only accept ≤₦150.)*
-2. **The full range (fast):** open **⚡ Simulate payment** and fire exact / under / over so the engine
-   shows **paid**, **partial** (balance accumulates), **overpaid** (surplus highlighted) in seconds.
+   *(With PRODUCTION creds in `.env.local`, the ultimate version: a real ₦100–₦150 bank transfer from a
+   real banking app into a freshly minted production VA — same flow, actual money on camera. Sandbox VAs
+   are NOT reachable from real bank apps — name-enquiry fails.)*
+2. **The full range (fast):** fire the same script with under / over amounts against one invoice so the
+   engine shows **paid**, **partial** (balance accumulates), **overpaid** (surplus highlighted) in
+   seconds. (The in-app simulate panel was retired when production went live — the signed script IS the
+   simulator, and it exercises the identical verified-webhook path.)
 > "That was a real signed webhook — no refresh, no manual matching, matched by the virtual-account
 > reference and reconciled the instant it lands. A forged signature is rejected; nothing else touches the ledger."
 

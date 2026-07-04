@@ -139,45 +139,16 @@ export function Chip({ status }: { status: PaymentOutcome | Invoice["status"] })
   );
 }
 
-export function SimPanel({ invoices, simulate, sync, reverseLast }: {
-  invoices: Invoice[];
-  simulate: (ref: string | null, amt: number) => void | Promise<boolean | void>;
-  reverseLast?: (ref: string) => void | Promise<boolean | void>;
-  sync?: () => Promise<{ configured: boolean; applied?: number; duplicates?: number; scanned?: number; message?: string } | null>;
+// The simulate-payment panel is retired: with production credentials wired, payments come from
+// real bank transfers (or the signed-webhook script for scripted demos — scripts/send-signed-webhook.mjs).
+// What remains is the judged RELIABILITY feature: the requery backstop.
+export function SyncPanel({ sync }: {
+  sync: () => Promise<{ configured: boolean; applied?: number; duplicates?: number; scanned?: number; message?: string } | null>;
 }) {
-  const [ref, setRef] = useState<string>("");
-  const [amount, setAmount] = useState<string>("");
-  const [collapsed, setCollapsed] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
-  const [simMsg, setSimMsg] = useState<string | null>(null);
-  const SIM_DISABLED = "Simulation is disabled in this build (set DEMO_MODE=1 to enable it).";
-
-  useEffect(() => {
-    if (!ref && invoices.length) setRef(invoices[0].id);
-  }, [invoices, ref]);
-
-  const quick = (kind: "full" | "partial" | "over" | "unmatched") => {
-    if (kind === "unmatched") { setRef("__none"); setAmount("55000"); return; }
-    const inv = invoices.find((i) => i.id === ref) || invoices[0];
-    if (!inv) return;
-    setRef(inv.id);
-    const remaining = Math.max(inv.amount - inv.paid, 0) || inv.amount;
-    if (kind === "full") setAmount(String(remaining));
-    if (kind === "partial") setAmount(String(Math.round(remaining * 0.4)));
-    if (kind === "over") setAmount(String(remaining + Math.round(inv.amount * 0.1)));
-  };
-
-  const fire = async () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return;
-    setSimMsg(null);
-    const ok = await simulate(ref === "__none" ? null : ref, amt);
-    if (ok === false) setSimMsg(SIM_DISABLED);
-  };
 
   const runSync = async () => {
-    if (!sync) return;
     setSyncing(true); setSyncMsg(null);
     try {
       const res = await sync();
@@ -190,44 +161,16 @@ export function SimPanel({ invoices, simulate, sync, reverseLast }: {
   };
 
   return (
-    <div className={`sim ${collapsed ? "collapsed" : ""}`}>
-      <h5>⚡ Simulate payment
-        <button className="toggle" aria-label={collapsed ? "Expand simulate panel" : "Collapse simulate panel"} aria-expanded={!collapsed} onClick={() => setCollapsed((c) => !c)}>{collapsed ? "+" : "–"}</button>
-      </h5>
+    <div className="sim">
+      <h5>🔄 Reconciliation backstop</h5>
       <div className="body">
-        <label>Pay to invoice</label>
-        <select value={ref} onChange={(e) => setRef(e.target.value)}>
-          {invoices.map((i) => (
-            <option key={i.id} value={i.id}>{i.id} · {i.customer.split("(")[0].trim()} ({NGN(i.amount)})</option>
-          ))}
-          <option value="__none">⚠ Wrong reference (no match)</option>
-        </select>
-        <label>Amount (₦)</label>
-        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 450000" />
-        <div className="quick">
-          <button onClick={() => quick("full")}>✅ Pay in full</button>
-          <button onClick={() => quick("partial")}>◑ Underpay</button>
-          <button onClick={() => quick("over")}>⬆ Overpay</button>
-          <button onClick={() => quick("unmatched")}>⚠ Wrong ref</button>
-        </div>
-        <button className="btn go" onClick={fire}>↳ Send mock webhook</button>
-        {reverseLast && ref && ref !== "__none" &&
-          invoices.find((i) => i.id === ref)?.payments?.some((p) => p.outcome !== "reversed") && (
-          <button className="ghost" style={{ width: "100%", marginTop: 8 }} onClick={async () => { setSimMsg(null); const ok = await reverseLast(ref); if (ok === false) setSimMsg(SIM_DISABLED); }}>
-            ⤺ Reverse last payment (clawback)
+        <div className="sync-row" style={{ marginTop: 0 }}>
+          <button className="btn sync" onClick={runSync} disabled={syncing}>
+            {syncing ? "⟳ Reconciling…" : "🔄 Sync from Nomba"}
           </button>
-        )}
-        <div className="hint">Runs the real reconcile path: matched by <span className="mono">aliasAccountReference</span> → classified. Watch the feed + invoices update.</div>
-        {simMsg && <div className="sync-msg mono">{simMsg}</div>}
-        {sync && (
-          <div className="sync-row">
-            <button className="btn sync" onClick={runSync} disabled={syncing}>
-              {syncing ? "⟳ Reconciling…" : "🔄 Sync from Nomba"}
-            </button>
-            <div className="hint">Backstop: re-pulls credits from Nomba and repairs the ledger if a webhook was ever missed. Idempotent — safe to run anytime.</div>
-            {syncMsg && <div className="sync-msg mono">{syncMsg}</div>}
-          </div>
-        )}
+          <div className="hint">Re-pulls credits from Nomba and repairs the ledger if a webhook was ever missed. Idempotent — safe to run anytime.</div>
+          {syncMsg && <div className="sync-msg mono">{syncMsg}</div>}
+        </div>
       </div>
     </div>
   );

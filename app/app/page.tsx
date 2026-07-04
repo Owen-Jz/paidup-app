@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useDashboard, Chip, SimPanel, CountUp } from "@/components/dashboard";
+import { useDashboard, Chip, SyncPanel, CountUp } from "@/components/dashboard";
 import { NGN, eventIcon, timeAgo, shortName } from "@/lib/format";
 
 export default function LivePage() {
-  const { invoices, events, quarantine, kpis, flashId, loading, error, simulate, sync, reverseLast } = useDashboard();
+  const { invoices, events, quarantine, kpis, flashId, loading, error, sync } = useDashboard();
   const [brief, setBrief] = useState<{ text: string; source: string } | null>(null);
   const [briefing, setBriefing] = useState(false);
 
@@ -155,7 +155,7 @@ export default function LivePage() {
         </div>
       </div>
 
-      <SimPanel invoices={invoices} simulate={simulate} sync={sync} reverseLast={reverseLast} />
+      <SyncPanel sync={sync} />
     </main>
   );
 }
