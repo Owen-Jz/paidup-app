@@ -1260,3 +1260,66 @@ table.inv tr:hover td{background:var(--paper-2)}
   .lx-illo{min-height:186px}
   .lx-txt h3{font-size:23px}
 }
+
+/* ============================================================
+   LANDING AMBIENT LOOPS (2026-07-07) — slow, quiet, editorial.
+   Every loop lives behind prefers-reduced-motion. The brand pixels
+   float via the `translate` property so the GSAP pointer-parallax
+   (which writes `transform`) composes instead of fighting.
+   ============================================================ */
+@media (prefers-reduced-motion: no-preference){
+  .bh-photo .px{animation:pxDrift 7s ease-in-out infinite alternate}
+  .bh-photo .p2{animation-duration:8.5s;animation-delay:.9s}
+  .bh-photo .p3{animation-duration:6.2s;animation-delay:1.6s}
+  .bh-photo .p4{animation-duration:9.3s;animation-delay:.4s}
+  .bh-photo .p5{animation-duration:7.8s;animation-delay:2.2s}
+  .lp-glow{animation:glowBreathe 11s ease-in-out infinite alternate}
+
+  /* the bento capability icons breathe, out of phase */
+  .bento .cellic{animation:icBreathe 5.2s ease-in-out infinite}
+  .bento .cell:nth-child(2) .cellic{animation-delay:.8s}
+  .bento .cell:nth-child(3) .cellic{animation-delay:1.6s}
+  .bento .cell:nth-child(4) .cellic{animation-delay:2.4s}
+  .bento .cell:nth-child(5) .cellic{animation-delay:3.2s}
+
+  /* the quarantine (ink) cell gets a slow sheen pass */
+  .bento .cell.ink{position:relative;overflow:hidden}
+  .bento .cell.ink::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(115deg,transparent 35%,rgba(127,224,174,.09) 50%,transparent 65%);
+    transform:translateX(-130%);animation:inkSheen 7.5s ease-in-out infinite}
+
+  /* final CTA: a slow emerald light runs the card's border */
+  .cta-card{isolation:isolate}
+  .cta-card::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:2px;z-index:-1;
+    background:conic-gradient(from var(--ctaAng,0deg),transparent 0 68%,rgba(19,106,72,.0) 72%,rgba(19,106,72,.55) 82%,rgba(231,178,74,.35) 88%,transparent 94%);
+    -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;
+    animation:ctaSweep 6s linear infinite}
+
+  /* the before/after cards each carry a small looping stream of incoming transfers */
+  .cmp-cycle span{animation:cmpCyc 9.6s ease-in-out infinite}
+  .cmp-cycle span:nth-child(2){animation-delay:3.2s}
+  .cmp-cycle span:nth-child(3){animation-delay:6.4s}
+}
+@property --ctaAng{syntax:"<angle>";initial-value:0deg;inherits:false}
+@keyframes ctaSweep{to{--ctaAng:360deg}}
+@keyframes pxDrift{from{translate:0 0}to{translate:0 -11px}}
+@keyframes glowBreathe{from{opacity:.75;transform:scale(1)}to{opacity:1;transform:scale(1.06)}}
+@keyframes icBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@keyframes inkSheen{0%,58%{transform:translateX(-130%)}88%,100%{transform:translateX(130%)}}
+@keyframes cmpCyc{0%{opacity:0;transform:translateY(9px)}4%,29%{opacity:1;transform:translateY(0)}33%,100%{opacity:0;transform:translateY(-9px)}}
+
+/* cycling-chip layout (visible even with reduced motion: first chip shows statically) */
+.cmp-cycle{position:relative;height:38px;margin:14px 0 2px}
+.cmp-cycle span{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:0 13px;border-radius:10px;font-size:13px;color:var(--muted);
+  background:var(--paper-2);border:1px solid var(--line);opacity:0}
+.cmp-cycle span:first-child{opacity:1}
+@media (prefers-reduced-motion: no-preference){.cmp-cycle span:first-child{opacity:0}}
+.cmp-cycle span b{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;font-weight:700}
+.cmp-cycle.bad span b{color:var(--attn)}
+.cmp-cycle.good span b{color:var(--accent)}
+.cmp-cycle .mono{font-family:var(--mono)}
+
+/* word-split section titles (GSAP rises each word; no-JS shows them plain) */
+[data-title-split] .tw{display:inline-block;white-space:pre}

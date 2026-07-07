@@ -129,7 +129,7 @@ export default function Landing() {
       <section className="section" id="problem">
         <div className="section-head" data-reveal>
           <span className="kicker">The reconciliation tax</span>
-          <h2 className="section-title">You&apos;re paid by transfer. So every evening, you match by hand.</h2>
+          <h2 className="section-title" data-title-split>You&apos;re paid by transfer. So every evening, you match by hand.</h2>
           <p className="section-lead">One account, every payer, a flood of look-alike &ldquo;payment&rdquo; narrations. PaidUp deletes the guesswork at the source.</p>
         </div>
 
@@ -140,6 +140,11 @@ export default function Landing() {
             <div className="cmp-acct bad">
               <b className="mono">0123456789</b>
               <small>one account · every customer pays here</small>
+            </div>
+            <div className="cmp-cycle bad" aria-hidden="true">
+              <span><span className="mono">NIP/—/&ldquo;payment&rdquo; · ₦20,000</span><b>WHO?</b></span>
+              <span><span className="mono">TRF JOHN G — inv 1050 · ₦55,000</span><b>WHICH?</b></span>
+              <span><span className="mono">&ldquo;God bless&rdquo; · ₦38,500</span><b>? ? ?</b></span>
             </div>
             <ul>
               <li><span className="ic"><X size={14} /></span><span>&ldquo;Transfer from JOHN G — <span className="mono">Pymt for inv 1050</span>&rdquo; — is that this month&apos;s or last?</span></li>
@@ -158,6 +163,11 @@ export default function Landing() {
               <b className="mono">3049420327</b>
               <small>a dedicated account · for INV-1042 alone</small>
             </div>
+            <div className="cmp-cycle good" aria-hidden="true">
+              <span><span className="mono">₦450,000 → INV-1042</span><b>PAID ✓</b></span>
+              <span><span className="mono">₦20,000 → INV-1043</span><b>PARTIAL ◑</b></span>
+              <span><span className="mono">₦1,300,000 → INV-1046</span><b>SURPLUS ↩</b></span>
+            </div>
             <ul>
               <li><span className="ic"><Check size={14} /></span><span>The account number <b>is</b> the reference — the customer types nothing.</span></li>
               <li><span className="ic"><Check size={14} /></span><span>Transfer lands → matched instantly → invoice flips to <b>Paid</b>.</span></li>
@@ -175,7 +185,7 @@ export default function Landing() {
       <section className="section" id="why" style={{ paddingTop: 0 }}>
         <div className="section-head" data-reveal>
           <span className="kicker">Why PaidUp</span>
-          <h2 className="section-title">Nomba ships the rails.<br />We ship the ledger.</h2>
+          <h2 className="section-title" data-title-split>Nomba ships the rails.<br />We ship the ledger.</h2>
           <p className="section-lead">Virtual accounts and webhooks are powerful primitives — but they leave you to answer &ldquo;who paid, how much, against what?&rdquo; That reconciliation layer is the whole product.</p>
         </div>
 

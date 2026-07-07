@@ -63,14 +63,47 @@ export function LandingMotion() {
       }
 
       ctx = gsap.context(() => {
-        // 1. Batched section reveals — clean rise-in, once.
+        // 1. Batched section reveals — rise in from a soft blur, once.
         const reveals = gsap.utils.toArray<HTMLElement>("[data-reveal]");
-        reveals.forEach((el) => gsap.set(el, { opacity: 0, y: 22 }));
+        reveals.forEach((el) => gsap.set(el, { opacity: 0, y: 26, scale: 0.988, filter: "blur(7px)" }));
         ScrollTrigger.batch("[data-reveal]", {
           start: "top 86%",
           once: true,
           onEnter: (els) =>
-            gsap.to(els, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", stagger: 0.08 }),
+            gsap.to(els, {
+              opacity: 1, y: 0, scale: 1, filter: "blur(0px)",
+              duration: 0.85, ease: "power3.out", stagger: 0.09,
+              clearProps: "filter,scale", // blur is paint-heavy — drop it once landed
+            }),
+        });
+
+        // 1b. Section titles rise word by word (markup keeps <br> line breaks intact).
+        gsap.utils.toArray<HTMLElement>("[data-title-split]").forEach((h) => {
+          if (h.dataset.split) return;
+          h.dataset.split = "1";
+          const wrap = (node: Node): Node[] => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              const frag: Node[] = [];
+              for (const w of (node.textContent || "").split(/(\s+)/)) {
+                if (w.trim() === "") { frag.push(document.createTextNode(w)); continue; }
+                const s = document.createElement("span");
+                s.className = "tw";
+                s.textContent = w;
+                frag.push(s);
+              }
+              return frag;
+            }
+            return [node];
+          };
+          const out: Node[] = [];
+          Array.from(h.childNodes).forEach((n) => out.push(...wrap(n)));
+          h.replaceChildren(...out);
+          const words = Array.from(h.querySelectorAll<HTMLElement>(".tw"));
+          gsap.set(words, { opacity: 0, yPercent: 55 });
+          ScrollTrigger.create({
+            trigger: h, start: "top 84%", once: true,
+            onEnter: () => gsap.to(words, { opacity: 1, yPercent: 0, duration: 0.65, ease: "power3.out", stagger: 0.045 }),
+          });
         });
 
         // 2. Hero lede — scrubbed word reveal.
