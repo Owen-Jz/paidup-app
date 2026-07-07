@@ -9,11 +9,13 @@ export const initials = (s: string) =>
 export const STATUS_LABEL: Record<string, string> = {
   paid: "Paid", partial: "Partial", overpaid: "Overpaid",
   awaiting: "Awaiting", quarantine: "Unmatched", duplicate: "Duplicate", refunded: "Refunded", reversed: "Reversed",
+  withdrawal: "Withdrawal",
 };
 
 export const STATUS_CLASS: Record<string, string> = {
   paid: "c-paid", partial: "c-partial", overpaid: "c-overpaid",
   awaiting: "c-awaiting", quarantine: "c-quarantine", duplicate: "c-duplicate", refunded: "c-refunded", reversed: "c-reversed",
+  withdrawal: "c-withdrawal",
 };
 
 export function shortName(s: string) {
@@ -21,7 +23,7 @@ export function shortName(s: string) {
 }
 
 export const eventIcon = (o: PaymentOutcome | InvoiceStatus): string =>
-  ({ paid: "💸", partial: "◑", overpaid: "⬆", quarantine: "⚠", duplicate: "⟳", refunded: "↩", reversed: "⤺", awaiting: "•" } as Record<string, string>)[o] || "•";
+  ({ paid: "💸", partial: "◑", overpaid: "⬆", quarantine: "⚠", duplicate: "⟳", refunded: "↩", reversed: "⤺", awaiting: "•", withdrawal: "↗" } as Record<string, string>)[o] || "•";
 
 export function timeAgo(iso: string): string {
   const diff = Date.now() - Date.parse(iso);
