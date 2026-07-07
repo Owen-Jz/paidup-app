@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PaidUp — intro motion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF6ED; --paper2:#F2ECDD; --card:#FFFDF8; --ink:#15211B; --ink2:#3C463F;
+    --muted:#66665A; --faint:#6A6253; --accent:#136A48; --accent2:#0E5638; --attn:#9E2B36; --attnbg:#F6DEDC; --paidbg:#E7EFE3;
+    --serif:"Bricolage Grotesque",Georgia,serif; --sans:"Instrument Sans",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--sans)}
+  /* printed-sheet feel: baseline grid + hairline frame */
+  .sheet{position:absolute;inset:0;
+    background:
+      radial-gradient(1200px 700px at 72% 18%, rgba(19,106,72,.055), transparent 62%),
+      radial-gradient(900px 600px at 18% 85%, rgba(158,43,54,.035), transparent 60%),
+      repeating-linear-gradient(0deg, transparent 0 47px, rgba(21,33,27,.028) 47px 48px),
+      var(--paper);}
+  .frame{position:absolute;inset:38px;border:1.5px solid rgba(21,33,27,.16);pointer-events:none}
+  .corner{position:absolute;width:14px;height:14px;border:2.5px solid var(--ink);opacity:.55}
+  .corner.tl{top:30px;left:30px;border-right:none;border-bottom:none}
+  .corner.tr{top:30px;right:30px;border-left:none;border-bottom:none}
+  .corner.bl{bottom:30px;left:30px;border-right:none;border-top:none}
+  .corner.br{bottom:30px;right:30px;border-left:none;border-top:none}
+  .runhead{position:absolute;top:56px;left:0;right:0;display:flex;justify-content:center;gap:18px;
+    font-family:var(--mono);font-size:15px;letter-spacing:.24em;color:var(--faint);text-transform:uppercase}
+  .runhead b{color:var(--accent);font-weight:600}
+  .pageno{position:absolute;bottom:58px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:var(--faint)}
+
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    opacity:0;visibility:hidden;transform:translateY(14px) scale(.992)}
+  .slide.on{opacity:1;visibility:visible;transform:none;transition:opacity .7s ease,transform .9s cubic-bezier(.22,.8,.24,1)}
+  .slide.off{opacity:0;visibility:visible;transform:translateY(-18px) scale(1.005);transition:opacity .55s ease,transform .55s ease}
+
+  .kicker{font-family:var(--mono);font-size:17px;letter-spacing:.34em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:30px}
+  .kicker::before,.kicker::after{content:"—";color:rgba(21,33,27,.3);margin:0 16px;letter-spacing:0}
+  h1{font-family:var(--serif);font-weight:600;font-size:104px;line-height:1.04;letter-spacing:-.025em;text-align:center;max-width:1500px}
+  h1 em{font-style:italic;color:var(--accent)}
+  .sub{font-size:27px;color:var(--muted);margin-top:26px;max-width:1080px;text-align:center;line-height:1.5}
+
+  /* staged children */
+  .st{opacity:0;transform:translateY(26px)}
+  .on .st{animation:rise .85s cubic-bezier(.22,.8,.24,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  /* S1 — alert cards */
+  .alerts{display:flex;gap:34px;margin-top:64px}
+  .alert{position:relative;width:430px;background:var(--card);border:1.5px solid rgba(21,33,27,.14);border-radius:16px;
+    padding:28px 30px;box-shadow:0 22px 44px -26px rgba(21,33,27,.35);text-align:left}
+  .alert .bank{font-family:var(--mono);font-size:13.5px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
+  .alert .amt{font-family:var(--mono);font-size:38px;font-weight:600;margin:10px 0 6px;color:var(--ink)}
+  .alert .ref{font-size:18.5px;color:var(--muted)}
+  .stamp{position:absolute;top:16px;right:-16px;transform:rotate(8deg) scale(2.2);opacity:0;
+    font-family:var(--mono);font-weight:700;font-size:16.5px;letter-spacing:.16em;color:var(--attn);
+    border:3px solid var(--attn);border-radius:6px;padding:7px 12px;background:rgba(246,222,220,.7)}
+  .on .stamp{animation:stamp .5s cubic-bezier(.34,1.3,.5,1) forwards}
+  @keyframes stamp{to{opacity:1;transform:rotate(8deg) scale(1)}}
+
+  /* S2 — ledger sheet */
+  .ledger{margin-top:60px;width:1180px;background:var(--card);border:1.5px solid rgba(21,33,27,.14);border-radius:16px;overflow:hidden;
+    box-shadow:0 26px 50px -28px rgba(21,33,27,.35)}
+  .lrow{display:grid;grid-template-columns:220px 1fr 260px 190px;padding:19px 34px;border-top:1px solid rgba(21,33,27,.08);
+    font-family:var(--mono);font-size:20px;align-items:center}
+  .lrow.h{background:var(--paper2);border-top:none;font-size:14.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+  .lrow .q{color:var(--attn);font-weight:700}
+  .lrow .ok{color:var(--accent);font-weight:600}
+  .midnight{margin-top:36px;font-family:var(--mono);font-size:21px;color:var(--attn);letter-spacing:.08em}
+
+  /* S3 — the link */
+  .linkrow{display:flex;align-items:center;gap:0;margin-top:70px}
+  .chipcard{background:var(--card);border:1.5px solid rgba(21,33,27,.16);border-radius:16px;padding:30px 40px;text-align:left;
+    box-shadow:0 22px 44px -26px rgba(21,33,27,.35)}
+  .chipcard .lab{font-family:var(--mono);font-size:13.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .chipcard .big{font-family:var(--mono);font-size:34px;font-weight:600}
+  .chipcard .big small{font-size:20px;color:var(--muted);font-weight:400}
+  .wire{width:210px;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));position:relative;transform:scaleX(0);transform-origin:left}
+  .on .wire{animation:wire .8s .9s cubic-bezier(.22,.8,.24,1) forwards}
+  @keyframes wire{to{transform:scaleX(1)}}
+  .wire::after{content:"";position:absolute;right:-7px;top:-6px;border:7.5px solid transparent;border-left-color:var(--accent2)}
+  .selfcheck{margin-top:52px;font-size:26px;color:var(--accent);font-weight:600;display:flex;align-items:center;gap:14px}
+  .selfcheck .tick{width:44px;height:44px;border-radius:50%;background:var(--paidbg);border:2px solid var(--accent);display:grid;place-items:center;font-size:24px;color:var(--accent2)}
+
+  /* S4 — use cases */
+  .cases{display:grid;grid-template-columns:repeat(4,1fr);gap:30px;margin-top:66px;width:1640px}
+  .case{background:var(--card);border:1.5px solid rgba(21,33,27,.14);border-radius:18px;padding:38px 32px 32px;text-align:left;
+    box-shadow:0 24px 48px -28px rgba(21,33,27,.32)}
+  .case .ico{font-size:46px;line-height:1}
+  .case h3{font-family:var(--serif);font-size:31px;font-weight:600;margin:20px 0 8px;letter-spacing:-.015em}
+  .case p{font-size:19.5px;color:var(--muted);line-height:1.45;min-height:56px}
+  .case .auto{margin-top:18px;font-family:var(--mono);font-size:14px;letter-spacing:.1em;color:var(--accent);font-weight:600}
+
+  /* S5 — live */
+  .pills{display:flex;gap:22px;margin-top:56px}
+  .pill{font-family:var(--mono);font-size:18px;font-weight:600;letter-spacing:.12em;padding:15px 30px;border-radius:999px;
+    background:var(--paidbg);color:var(--accent2);border:2px solid var(--accent)}
+  .pill.dark{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .livewrap{transform:scale(1)}
+  .slide.on .zoomcue{animation:cue 6s 2.2s ease-in forwards}
+  @keyframes cue{to{transform:scale(1.055)}}
+
+  /* OUTRO */
+  .logomark{width:96px;height:96px;border-radius:24px;background:var(--ink);color:var(--paper);display:grid;place-items:center;
+    font-family:var(--serif);font-size:54px;font-weight:600;box-shadow:0 26px 52px -24px rgba(21,33,27,.5)}
+  .wordmark{font-family:var(--serif);font-size:92px;font-weight:600;letter-spacing:-.03em;margin-top:34px}
+  .tagline{font-family:var(--serif);font-style:italic;font-size:37px;color:var(--accent);margin-top:14px}
+  .stats{display:flex;gap:20px;margin-top:56px;font-family:var(--mono);font-size:18px;color:var(--ink2)}
+  .stats span{padding:13px 24px;border:1.5px solid rgba(21,33,27,.22);border-radius:999px;background:var(--card)}
+  .site{margin-top:54px;font-family:var(--mono);font-size:30px;font-weight:600;color:var(--accent2);letter-spacing:.06em}
+  .credit{position:absolute;bottom:96px;left:0;right:0;text-align:center;font-size:15px;color:var(--faint)}
+  d1{display:none}
+</style>
+</head>
+<body>
+<div class="sheet"></div>
+<div class="frame"></div>
+<span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+<div class="runhead">PAIDUP <b>·</b> RECONCILIATION ON NOMBA VIRTUAL ACCOUNTS <b>·</b> 2026</div>
+<div class="pageno" id="pageno">— 01 —</div>
+
+<!-- S1 -->
+<section class="slide" id="i1-problem">
+  <div class="kicker st" style="animation-delay:.1s">The problem</div>
+  <h1 class="st" style="animation-delay:.25s">Money moves by transfer.<br><em>References don't.</em></h1>
+  <div class="alerts">
+    <div class="alert st" style="animation-delay:1.6s"><div class="bank">GTBank · Credit alert</div><div class="amt">₦45,000.00</div><div class="ref">Ref: —</div><div class="stamp" style="animation-delay:2.5s">NO REFERENCE</div></div>
+    <div class="alert st" style="animation-delay:2.0s"><div class="bank">OPay · Credit alert</div><div class="amt">₦120,000.00</div><div class="ref">Ref: “Payment”</div><div class="stamp" style="animation-delay:2.9s">NO REFERENCE</div></div>
+    <div class="alert st" style="animation-delay:2.4s"><div class="bank">Kuda · Credit alert</div><div class="amt">₦38,500.00</div><div class="ref">Ref: “God bless”</div><div class="stamp" style="animation-delay:3.3s">NO REFERENCE</div></div>
+  </div>
+</section>
+
+<!-- S2 -->
+<section class="slide" id="i2-pain">
+  <div class="kicker st" style="animation-delay:.1s">The cost</div>
+  <h1 class="st" style="animation-delay:.25s">Reconciled by hand.<br><em>At midnight.</em></h1>
+  <div class="ledger st" style="animation-delay:1.2s">
+    <div class="lrow h"><span>Alert</span><span>Sender</span><span>Invoice?</span><span>Status</span></div>
+    <div class="lrow st" style="animation-delay:1.7s"><span>₦45,000</span><span>ADEBAYO O.</span><span class="q">? ? ?</span><span class="q">unmatched</span></div>
+    <div class="lrow st" style="animation-delay:2.2s"><span>₦120,000</span><span>CHIDINMA LTD</span><span class="q">? ? ?</span><span class="q">unmatched</span></div>
+    <div class="lrow st" style="animation-delay:2.7s"><span>₦38,500</span><span>MUSA &amp; SONS</span><span class="q">? ? ?</span><span class="q">unmatched</span></div>
+  </div>
+  <div class="midnight st" style="animation-delay:3.4s">23:47 · 3 unmatched · revenue leaking</div>
+</section>
+
+<!-- S3 -->
+<section class="slide" id="i3-idea">
+  <div class="kicker st" style="animation-delay:.1s">The idea</div>
+  <h1 class="st" style="animation-delay:.25s">The account number<br><em>is the reference.</em></h1>
+  <div class="linkrow">
+    <div class="chipcard st" style="animation-delay:1.1s"><div class="lab">Invoice</div><div class="big">INV-1042 <small>· ₦450,000</small></div></div>
+    <div class="wire"></div>
+    <div class="chipcard st" style="animation-delay:1.9s"><div class="lab">Its own Nomba virtual account</div><div class="big">988 042 2231 <small>· any bank</small></div></div>
+  </div>
+  <div class="selfcheck st" style="animation-delay:2.8s"><span class="tick">✓</span> payments reconcile themselves</div>
+</section>
+
+<!-- S4 -->
+<section class="slide" id="i4-usecases">
+  <div class="kicker st" style="animation-delay:.1s">Where it shines</div>
+  <h1 class="st" style="animation-delay:.22s" style="font-size:92px">One account per <em>everything.</em></h1>
+  <div class="cases">
+    <div class="case st" style="animation-delay:1.2s"><div class="ico">🎓</div><h3>School fees</h3><p>One account per student — every fee lands labelled.</p><div class="auto">✓ AUTO-RECONCILED</div></div>
+    <div class="case st" style="animation-delay:2.4s"><div class="ico">📦</div><h3>Suppliers</h3><p>One per invoice — B2B transfers match themselves.</p><div class="auto">✓ AUTO-RECONCILED</div></div>
+    <div class="case st" style="animation-delay:3.6s"><div class="ico">🏠</div><h3>Landlords</h3><p>One per tenancy — rent arrives already assigned.</p><div class="auto">✓ AUTO-RECONCILED</div></div>
+    <div class="case st" style="animation-delay:4.8s"><div class="ico">🤝</div><h3>Savings groups</h3><p>One per member — contributions track to the naira.</p><div class="auto">✓ AUTO-RECONCILED</div></div>
+  </div>
+</section>
+
+<!-- S5 -->
+<section class="slide" id="i5-live">
+  <div class="zoomcue" style="display:flex;flex-direction:column;align-items:center">
+    <div class="kicker st" style="animation-delay:.1s">Not a prototype</div>
+    <h1 class="st" style="animation-delay:.25s">Live in <em>production.</em></h1>
+    <div class="pills">
+      <div class="pill st" style="animation-delay:1.3s">REAL NOMBA RAILS</div>
+      <div class="pill dark st" style="animation-delay:1.7s">REAL ₦ PROVEN</div>
+      <div class="pill st" style="animation-delay:2.1s">HMAC VERIFIED</div>
+    </div>
+    <div class="sub st" style="animation-delay:2.6s">Here it is.</div>
+  </div>
+</section>
+
+<!-- OUTRO -->
+<section class="slide" id="o1-close">
+  <div class="logomark st" style="animation-delay:.15s">P</div>
+  <div class="wordmark st" style="animation-delay:.5s">PaidUp</div>
+  <div class="tagline st" style="animation-delay:1.0s">Every transfer finds its invoice.</div>
+  <div class="stats">
+    <span class="st" style="animation-delay:8.5s">147 unit tests</span>
+    <span class="st" style="animation-delay:9.3s">HMAC verified</span>
+    <span class="st" style="animation-delay:10.1s">fails closed</span>
+    <span class="st" style="animation-delay:10.9s">real ₦ proven</span>
+  </div>
+  <div class="site st" style="animation-delay:18s">paidup.site</div>
+  <div class="credit st" style="animation-delay:19s">Built for the Nomba × DevCareer Hackathon 2026 · Music: Kevin MacLeod (incompetech.com), CC BY 4.0</div>
+</section>
+
+<script>
+  // Timeline driven externally: window.__start([{id, dur}, ...]) — durations in seconds.
+  const pageno = document.getElementById("pageno");
+  let n = 0;
+  window.__start = async (parts) => {
+    for (const p of parts) {
+      n += 1;
+      pageno.textContent = `— 0${n} —`;
+      const el = document.getElementById(p.id);
+      document.querySelectorAll(".slide.on").forEach((s) => { s.classList.remove("on"); s.classList.add("off"); });
+      el.classList.remove("off"); el.classList.add("on");
+      await new Promise((r) => setTimeout(r, p.dur * 1000));
+    }
+    window.__done = true;
+  };
+</script>
+</body>
+</html>
