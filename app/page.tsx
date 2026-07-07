@@ -1,13 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-  ShieldCheck, ArrowRight, Play, CheckCircle2, Landmark, ArrowRightLeft,
+  ShieldCheck, ArrowRight, CheckCircle2, Landmark, ArrowRightLeft,
   Scale, Undo2, Copy, ShieldAlert, FileDown, Lock, Check, X,
 } from "lucide-react";
 import { ReconcileDemo } from "@/components/ReconcileDemo";
 import { LandingMotion } from "@/components/LandingMotion";
 import { StoryScroll } from "@/components/StoryScroll";
 import { LoopScroll } from "@/components/LoopScroll";
+import { DemoVideo } from "@/components/DemoVideo";
 
 export default function Landing() {
   return (
@@ -40,7 +41,7 @@ export default function Landing() {
           <h1>Every transfer,<br />on the <em>right invoice.</em></h1>
           <div className="cta">
             <Link href="/get-started" className="btn-xl">Start free <ArrowRight size={18} /></Link>
-            <Link href="/app" className="btn-ghost-xl"><Play size={16} /> See it live</Link>
+            <DemoVideo />
           </div>
           <div className="lp-microtrust">
             <CheckCircle2 size={15} /> No card · first invoice in 60 seconds

@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    PaidUp — "The Ledger, sharpened"
    Warm editorial-fintech: paper, green-black ink, emerald money, gold pop.
    Bricolage Grotesque (display) · Instrument Sans (body) · JetBrains Mono (figures)
@@ -1323,3 +1323,20 @@ table.inv tr:hover td{background:var(--paper-2)}
 
 /* word-split section titles (GSAP rises each word; no-JS shows them plain) */
 [data-title-split] .tw{display:inline-block;white-space:pre}
+
+/* ============================================================
+   DEMO VIDEO LIGHTBOX — the hero "Watch the demo" player.
+   ============================================================ */
+.demo-lightbox{position:fixed;inset:0;z-index:120;display:grid;place-items:center;
+  background:rgba(14,18,15,.78);backdrop-filter:blur(6px);animation:dlbIn .25s ease}
+.demo-lightbox-inner{position:relative;width:min(1120px,92vw)}
+.demo-lightbox video{width:100%;display:block;border-radius:14px;background:#000;
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.8);aspect-ratio:16/9}
+.demo-lightbox-close{position:absolute;top:-46px;right:0;display:grid;place-items:center;
+  width:38px;height:38px;border-radius:50%;border:1.5px solid rgba(250,246,237,.4);
+  background:rgba(250,246,237,.08);color:var(--paper);cursor:pointer;transition:background .2s,transform .2s}
+.demo-lightbox-close:hover{background:rgba(250,246,237,.18);transform:scale(1.06)}
+.demo-lightbox-cap{margin-top:12px;text-align:center;font-size:12px;letter-spacing:.08em;
+  color:rgba(250,246,237,.65);text-transform:uppercase}
+@keyframes dlbIn{from{opacity:0}to{opacity:1}}
+@media (max-width:720px){.demo-lightbox-close{top:auto;bottom:-48px}}
