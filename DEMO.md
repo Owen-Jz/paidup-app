@@ -1,107 +1,112 @@
-# PaidUp — 2–3 minute demo script
+# PaidUp — 5-minute demo script
 
-The submission's demo video walkthrough. Optimised for the judging rubric: **reconciliation quality,
-under/overpayment handling, customer-level reporting clarity** — plus the AI moat. Lead with the wound,
-show the engine, end on the moat.
+The submission's demo video walkthrough. Organizer guidance (Slack, 2026-07-06): **"keep it to
+5 minutes and cover everything."** Optimised for the judging rubric: **reconciliation quality,
+under/overpayment handling, customer-level reporting clarity** — plus the AI moat. Lead with the
+wound, show the engine end to end (money in → reconciled → money out), end on the moat.
 
-## Before you record (60 seconds of setup)
+## Before you record (2 minutes of setup)
 
-**Hosted (recommended):** the demo runs live at **https://paidup.site** — sign in with `demo@paidup.app` / `LedgerDemo2026`, no local setup needed.
+**The demo runs live at https://paidup.site** — production hosting, real Nomba production creds,
+the real webhook tunnel. No local setup needed.
 
-**Local (alternative):**
-```bash
-cd paidup
-npm run dev                 # http://localhost:3100
-```
-Reset for a fresh demo: drop the dev database (`mongosh paidup --eval "db.dropDatabase()"`) OR use the seeded demo workspace as-is. (The file-backed `.data/ledger.json` no longer exists.)
+- **Judge/demo login: `demo@paidup.app` / `LedgerDemo2026`** (also in README.md — put it in the
+  submission form too, per the organizers).
+- The webhook endpoint submitted to Nomba (`https://rimose-rayan-better.ngrok-free.dev/api/webhook`)
+  is served from the same host — a real bank transfer on camera reconciles live. **Both systemd
+  services (`paidup`, `ngrok-paidup`) must be active** — check `systemctl is-active paidup ngrok-paidup`
+  on the VPS before recording.
+- Have ready:
+  1. A browser signed in to the **demo workspace** with two tabs: `/` (the story) and `/app` (live feed).
+  2. A **phone with a real banking app** (OPay/GTBank/any) for the money shot — sandbox VAs are NOT
+     reachable from real banks; production VAs are, and the creds on the VPS are production.
+  3. A terminal with the signed-webhook script ready (fallback + range demo):
+     ```bash
+     NOMBA_WEBHOOK_SECRET=<key> node scripts/send-signed-webhook.mjs \
+       https://rimose-rayan-better.ngrok-free.dev/api/webhook <INV-ref> <amount>
+     ```
+- `MINIMAX_API_KEY` is set on the host, so the **✨ AI LIVE** pill shows and AI features are real.
+  If it were absent everything still works — deterministic fallbacks, pill reads **AI OFF · RULES**.
+  The demo never breaks.
+- Record at 1280×800 or higher. Phone screen-record (or camera over the shoulder) for the transfer beat.
 
-- **Sign in first** — the app is a real multi-tenant SaaS now. The populated demo workspace:
-  **`demo@paidup.app` / `LedgerDemo2026`** (override the password with `DEMO_PASSWORD`). Or sign up
-  fresh at `/signup` to show an empty, isolated workspace. `.env.local` needs `SESSION_SECRET` set.
-- `.env.local` should have the TEST Nomba creds + `NOMBA_WEBHOOK_SECRET=<your Nomba webhook signing key>` + `MINIMAX_API_KEY`
-  (so the **✨ AI LIVE** pill shows and the AI features are real). If the AI key is absent, everything still
-  works — the app falls back to the deterministic engine and the pill reads **AI OFF · RULES**. The demo never breaks.
-- **To show the REAL Nomba webhook path** (recommended — it's a scored security criterion), also have the
-  tunnel up so `/api/webhook` is reachable and the HMAC check is live:
-  ```bash
-  ngrok http --url=rimose-rayan-better.ngrok-free.dev 3100
-  ```
-- Record at 1280×800+. Have two browser tabs ready: `/` (story) and `/app` (the live feed).
+## The script (≤ 5:00)
 
-## The script
-
-**0:00 — The wound (landing, `/`)**  *(~20s)*
+**0:00 — The wound (landing, `/`)**  *(~30s)*
 > "Every Nigerian SME has the same problem: customers pay by bank transfer with no usable reference —
 > 'Payment, no invoice ref' — and someone reconciles it by hand at midnight."
 
-Scroll the landing's before/after band. Land on the one-line thesis: **the account number IS the reference.**
+Scroll the landing's story band (before/after → the loop). Land on the one-line thesis:
+**the account number IS the reference.**
 
-**0:20 — One invoice, one account (`/get-started` → New Invoice)**  *(~25s)*
-> "Create an invoice and it gets its own dedicated Nomba virtual account. The customer just sends money —
-> nothing to type."
+**0:30 — One invoice, one account (`/app/invoices` → New Invoice)**  *(~40s)*
+> "Create an invoice — customer, amount, an optional due date — and it gets its own dedicated Nomba
+> **production** virtual account, minted live on the API. The customer just sends money; nothing to type."
 
-Show the create flow → the success state with the **big virtual-account number + Copy**. Note: a real
-sandbox NUBAN is minted (falls back to a mock only if the Nomba call fails, so the demo never breaks).
+Show the create flow → the success state with the **big virtual-account number + Copy**. Point at the
+due-date chip on the new row ("Due in 7d"). Mention: every invoice gets its own VA — that's the
+"Virtual Accounts as Infrastructure" track, literally.
 
-**0:45 — Money lands, auto-reconciles (`/app`, the live feed)**  *(~35s)*  ← the wow moment
-Show the real path first, then the full range:
-1. **The REAL Nomba path (proves the integration):** in a terminal, fire one genuinely HMAC-signed
-   webhook at the live endpoint —
-   ```bash
-   node scripts/send-signed-webhook.mjs https://rimose-rayan-better.ngrok-free.dev/api/webhook INV-1044 75500
-   ```
-   → it passes the **9-field signature check** and INV-1044 flips to **paid** live in the feed. This is the
-   *actual* Nomba webhook path (verified HMAC, matched by `aliasAccountReference`) — **not** a demo shortcut.
-   *(With PRODUCTION creds in `.env.local`, the ultimate version: a real ₦100–₦150 bank transfer from a
-   real banking app into a freshly minted production VA — same flow, actual money on camera. Sandbox VAs
-   are NOT reachable from real bank apps — name-enquiry fails.)*
-2. **The full range (fast):** fire the same script with under / over amounts against one invoice so the
-   engine shows **paid**, **partial** (balance accumulates), **overpaid** (surplus highlighted) in
-   seconds. (The in-app simulate panel was retired when production went live — the signed script IS the
-   simulator, and it exercises the identical verified-webhook path.)
-> "That was a real signed webhook — no refresh, no manual matching, matched by the virtual-account
-> reference and reconciled the instant it lands. A forged signature is rejected; nothing else touches the ledger."
+**1:10 — The customer's side (`/pay/<token>`)**  *(~25s)*
+Open the invoice's pay link (or scan its QR on camera).
+> "This is what the customer gets — the account details, a QR, and a **WhatsApp share** so the invoice
+> travels the way Nigerian business actually talks. Leave this page open — watch it."
 
-**1:20 — Under/overpayment handling + one-tap refund (`/app/invoices`)**  *(~25s)*
-Click the overpaid invoice → the **statement drawer**: payment history, running balance, the VA number.
-Hit **Refund surplus** → the overpayment goes back via `/v2/transfers/bank` (lookup→transfer, stable
-idempotency key). In the demo it's recorded and labelled **not-settled** (sandbox transfers are
-production-only); in production it only marks refunded on a confirmed `SUCCESS` — never a phantom.
-> "The surplus goes back to the payer in one tap — and if the transfer doesn't settle, the ledger
-> refuses to lie about it."
+**1:35 — Money lands, auto-reconciles**  *(~50s)*  ← the wow moment
+On the phone, make a **real transfer** (₦100–₦500) from a real banking app to the VA on screen.
+Split-screen or cut between: the **live feed** (`/app`) and the still-open **pay page**.
+> "That's a real interbank transfer. Nomba fires a `payment_success` webhook, PaidUp verifies the
+> **9-field HMAC signature**, matches by the virtual-account reference, and reconciles — watch the
+> feed… **paid**. And the customer's pay page just flipped to **settled** on its own — no refresh.
+> No manual matching happened anywhere."
 
-**1:45 — The hard case: unmatched money + AI resolver**  *(~30s)*  ← the moat
+*(Fallback if recording without a phone: fire the signed-webhook script at the live endpoint — it's
+the identical verified-HMAC path, not a shortcut.)*
+
+**2:25 — The full range: partial, overpaid, refund**  *(~40s)*
+Fire the script (or transfers) with under / over amounts against one invoice:
+> "Underpayment → **partial**, and the balance accumulates across instalments. Overpayment → **overpaid**
+> with the surplus highlighted. One tap — **Refund surplus** — and the extra goes back to the payer via
+> Nomba's transfer API with a name-check first and a stable idempotency key. If the transfer doesn't
+> settle, the ledger refuses to lie about it."
+
+Open the invoice's **statement drawer**: payment history, running balance, the requery ("verify with
+the bank network") action on a payment.
+
+**3:05 — The hard case: unmatched money + AI resolver**  *(~30s)*  ← the moat
 Point to the **Attention** queue: a transfer with no matching reference (quarantined, never lost).
 Click **✨ Ask AI**:
-> "MiniMax reads the narration, amount and sender, and tells me which invoice this almost certainly
-> pays — in plain English — and I confirm in one click. The AI only *suggests*; it's hard-grounded to a
-> real open invoice, so it can't invent anything. No key? It falls back to the rule-based matcher."
+> "MiniMax reads the narration, amount and sender and tells me which invoice this almost certainly
+> pays — in plain English — and I confirm in one click. The AI only *suggests*; it's hard-grounded to
+> a real open invoice, so it can't invent anything. No key? It falls back to the rule-based matcher."
 
-Accept the suggestion → the payment reconciles. (Optionally show **⚑ Explain with AI** turning a flag into
-a recommended action.)
+Accept the suggestion → the payment reconciles.
 
-**2:15 — AI brief + trust (`/app`)**  *(~20s)*
-On the live page, hit **Generate brief** on the **✨ AI reconciliation brief** card.
-> "A plain-English read on the whole ledger — collected, outstanding, what needs me — over the *computed*
-> figures, so it can never invent money."
+**3:35 — Trust: AI brief, anomalies, the tie-out**  *(~25s)*
+Hit **Generate brief** on the **✨ AI reconciliation brief** card:
+> "A plain-English read on the whole ledger — over the *computed* figures, so it can never invent money."
 
-Tap the **✨ AI LIVE** pill / mention **fail-closed webhook HMAC** and the **anomaly flags**. Point at the
-sync note under the header — **"✓ last synced … · ₦XXX settled at Nomba"**:
+Point at the sync note — **"✓ last synced … · ₦XXX settled at Nomba"**:
 > "That figure is live from Nomba's balance API — the ledger ties out against real settled cash, to the naira."
 
-**2:20 — Withdraw closing beat (`/app/withdraw`)**  *(~15s)*
-> "Collected → reconciled → **paid out to my own bank** — a real ₦ transfer on camera. The full money-in-to-money-out loop."
+**4:00 — Reporting (`/app/reports/ledger`, `/app/reports/audit`)**  *(~20s)*
+> "Customer-level clarity: a print-ready ledger report, per-invoice statements, audit-grade CSV export —
+> and a hash-chained audit log, so history can't be quietly rewritten."
 
-Show the withdraw page: enter bank details → the app confirms the recipient name from Nomba before sending — never wires to a wrong account.
+**4:20 — Money out (`/app/withdraw`)**  *(~20s)*
+> "Collected → reconciled → **paid out to my own bank**. The app confirms the recipient name from Nomba
+> before sending, and a write-ahead record means a crash can never double-spend. Money in to money out —
+> the loop is closed."
 
-**2:35 — Receipt + verification beat**  *(~10s)*
-> "The payer opens `/pay/<token>/receipt` (save-as-PDF) and scans the verification QR. `/pay/<token>/verify` shows the payment is real — the answer to fake bank alerts."
+**4:40 — Receipt + verification beat**  *(~10s)*
+> "The payer gets a receipt with a QR — `/pay/<token>/verify` proves the payment is real. That's the
+> answer to fake bank alerts."
 
-**2:45 — Close**  *(~15s)*
+**4:50 — Close**  *(~10s)*
 > "PaidUp turns Nomba's raw virtual-account primitive into a managed reconciliation ledger — exact,
 > partial, overpaid, reversed and unmatched all handled, with AI that sharpens the work but can never
-> break the money path. 136 unit tests, HMAC verified against Nomba's own vector, fails closed in production —
-> and it's all proven with real money: real bank transfers, a real refund, on the live API."
+> break the money path. **147 unit tests**, HMAC verified against Nomba's own docs vector, fails closed
+> in production — all proven with real money on the live API."
 
 ## One-line pitch (for the form)
 > Per-invoice Nomba virtual accounts + a reconciliation engine that auto-matches every transfer
@@ -109,7 +114,11 @@ Show the withdraw page: enter bank details → the app confirms the recipient na
 > degrades gracefully so a missing key never breaks the demo.
 
 ## If something misbehaves on the day
-- Feed not updating → the dashboard polls `/api/events` every 2s; check the dev server is up on :3100.
-- AI button shows "AI not configured" → `MINIMAX_API_KEY` isn't set; the deterministic fallback still works.
-- Want a clean slate mid-demo → Reset for a fresh demo: drop the dev database (`mongosh paidup --eval "db.dropDatabase()"`) OR use the seeded demo workspace as-is. (The file-backed `.data/ledger.json` no longer exists.)
-- Reset everything verified: `npm test` (136) · `npm run build` · `node ../smoke-test/smoke-test.mjs`.
+- Feed not updating → the dashboard polls `/api/events` every 2s; check `systemctl status paidup` on
+  the VPS (`journalctl -u paidup -n 50` for logs).
+- Webhook not landing → `systemctl status ngrok-paidup`; the submitted URL is permanent and must stay
+  up through judging (webhook URLs are frozen after the deadline).
+- AI button shows "AI not configured" → `MINIMAX_API_KEY` isn't set on the host; the deterministic
+  fallback still works.
+- Everything re-verifiable in one line: `npm test` (147) · `npm run build` ·
+  `node ../smoke-test/smoke-test.mjs`.
