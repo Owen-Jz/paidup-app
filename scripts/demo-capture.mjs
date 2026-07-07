@@ -21,7 +21,7 @@ const VO_DIR = path.join(process.cwd(), "voice-notes", "demo-vo");
 const OUT_DIR = path.join(VO_DIR, "take");
 const EMAIL = "demo@paidup.app";
 const PASSWORD = "LedgerDemo2026";
-const PAD = DRY ? 0.2 : 1.8; // seconds appended after each beat's narration
+const PAD = DRY ? 0.2 : 1.4; // seconds appended after each beat's narration
 
 // ---- narration durations (from beats.json mp3s, measured with ffprobe) ----
 const AUDIO = JSON.parse(fs.readFileSync(path.join(VO_DIR, "durations.json"), "utf8").replace(/^﻿/, ""));
@@ -89,7 +89,7 @@ async function typeAndVerify(page, sel, value, dry) {
   for (let attempt = 0; attempt < 5; attempt++) {
     await el.click();
     if (dry) await el.fill(value);
-    else { await el.fill(""); await el.pressSequentially(value, { delay: 45 }); }
+    else { await el.fill(""); await el.pressSequentially(value, { delay: 70 }); }
     await page.waitForTimeout(150);
     if ((await el.inputValue()) === value) return;
     await el.fill(value);
@@ -99,7 +99,41 @@ async function typeAndVerify(page, sel, value, dry) {
   throw new Error(`could not set ${sel}`);
 }
 
+// Element zoom: scale the element itself in place (lifted-card look). Safe on pages with
+// position:fixed chrome (sidebar/modals/drawers), where a page-level transform would re-anchor
+// fixed elements to the document and wreck the layout mid-shot.
+async function zoomElement(page, selector, scale = 1.3, holdMs = 3000) {
+  const ok = await page.evaluate(
+    ({ sel, sc }) => {
+      const el = document.querySelector(sel);
+      if (!el) return false;
+      el.dataset.prevStyle = el.getAttribute("style") || "";
+      el.style.transition = "transform .9s cubic-bezier(.3,0,.2,1), box-shadow .9s ease";
+      el.style.transformOrigin = "50% 50%";
+      el.style.position = el.style.position || "relative";
+      el.style.zIndex = "60";
+      el.style.background = getComputedStyle(el).backgroundColor === "rgba(0, 0, 0, 0)" ? "var(--card, #FFFDF8)" : "";
+      el.style.boxShadow = "0 26px 52px -22px rgba(21,33,27,.45)";
+      el.style.borderRadius = getComputedStyle(el).borderRadius === "0px" ? "12px" : "";
+      el.style.transform = `scale(${sc})`;
+      return true;
+    },
+    { sel: selector, sc: scale }
+  );
+  if (!ok) { console.warn(`  element-zoom target missing: ${selector}`); return; }
+  await page.waitForTimeout(1000 + holdMs);
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.style.transform = "scale(1)";
+    setTimeout(() => el.setAttribute("style", el.dataset.prevStyle || ""), 950);
+  }, selector);
+  await page.waitForTimeout(1000);
+}
+
 // Cinematic zoom: scale the page toward an element's center (camera push-in), hold, pull back.
+// ONLY safe on pages without position:fixed chrome (the public pay pages) — a transformed html
+// re-anchors fixed elements (sidebar, modal-bg, drawer-bg) to the document and breaks the shot.
 async function zoomTo(page, selector, scale = 1.55, holdMs = 3000) {
   const ok = await page.evaluate(
     ({ sel, sc }) => {
@@ -201,16 +235,16 @@ const lead = (t0 - tCreate) / 1000;
 console.log(`measured lead: ${lead.toFixed(2)}s`);
 
 try {
-  // 01 — landing story
+  // 01 — landing story (short beat: the animated intro carries the story now)
   await beat(page, "01-landing");
   await page.goto(BASE + "/", { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(2500);
-  await smoothScroll(page, 2600, 130, DRY ? 20 : 95);
-  await page.waitForTimeout(1200);
-
-  // 02 — sign in
-  await beat(page, "02-login");
+  await page.waitForTimeout(1600);
+  await smoothScroll(page, 1500, 150, DRY ? 20 : 70);
+  // pre-navigate during this beat's tail so "Let's sign in" starts ON the login page
   await page.goto(BASE + "/login", { waitUntil: "domcontentloaded" });
+
+  // 02 — sign in (narration LEADS with "Let's sign in" — typing must happen while it plays)
+  await beat(page, "02-login");
   page.on("response", (r) => { if (r.url().includes("/api/login")) console.log("  login api:", r.status()); });
   // Show the credentials being entered (nice on camera), then use the race-free one-click
   // demo-workspace button — its handler logs in with hardcoded creds, so it can't submit an
@@ -219,6 +253,7 @@ try {
   let loggedIn = false;
   for (let attempt = 1; attempt <= 3 && !loggedIn; attempt++) {
     if (attempt === 1) {
+      await page.waitForTimeout(DRY ? 50 : 600); // let "Let's sign in" land before typing starts
       await typeAndVerify(page, "#email", EMAIL, DRY);
       await typeAndVerify(page, "#pw", PASSWORD, DRY);
       await page.waitForTimeout(DRY ? 100 : 700);
@@ -239,9 +274,7 @@ try {
   await page.waitForTimeout(1500);
   await smoothScroll(page, 500, 100, DRY ? 20 : 110);
   await smoothScroll(page, -500, 100, DRY ? 20 : 80);
-
-  // 04 — create the hero invoice (REAL VA in a full take)
-  await beat(page, "04-create");
+  // pre-open the New-invoice modal in this beat's tail so narration 04 starts ON the open form
   await page.goto(BASE + "/app/invoices", { waitUntil: "domcontentloaded" });
   const newBtn = page.getByRole("button", { name: /New invoice/ });
   await newBtn.first().waitFor({ timeout: 30000 });
@@ -255,38 +288,50 @@ try {
       throw e;
     });
   }
+
+  // 04 — create the hero invoice (REAL VA in a full take); form fills slowly, on camera
+  await beat(page, "04-create");
+  await page.waitForTimeout(DRY ? 50 : 800);
   await page.locator("#ni-cust").click();
-  await page.locator("#ni-cust").pressSequentially("Kaduna Textiles Ltd", { delay: DRY ? 5 : 45 });
-  await page.locator('input[aria-label="Item 1 description"]').pressSequentially("Ankara fabric — 3 bundles", { delay: DRY ? 5 : 35 });
-  await page.locator('input[aria-label="Item 1 amount"]').pressSequentially("85000", { delay: DRY ? 5 : 70 });
+  await page.locator("#ni-cust").pressSequentially("Kaduna Textiles Ltd", { delay: DRY ? 5 : 95 });
+  await page.locator('input[aria-label="Item 1 description"]').click();
+  await page.locator('input[aria-label="Item 1 description"]').pressSequentially("Ankara fabric — 3 bundles", { delay: DRY ? 5 : 70 });
+  await page.locator('input[aria-label="Item 1 amount"]').click();
+  await page.locator('input[aria-label="Item 1 amount"]').pressSequentially("85000", { delay: DRY ? 5 : 160 });
   const due = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   await page.locator("#ni-due").fill(due);
-  await atBeatTime(page, DRY ? 0 : 9);
+  await atBeatTime(page, DRY ? 0 : 12.5);
   await page.getByRole("button", { name: "Create invoice + account" }).click();
   await page.getByRole("button", { name: "Done" }).waitFor({ timeout: 30000 }); // success modal (VA on screen)
   const heroId = await page.evaluate(async () => {
     const r = await fetch("/api/events");
     const j = await r.json();
     const inv = (j.invoices || []).find((i) => i.customer === "Kaduna Textiles Ltd" && i.status === "awaiting");
-    return inv ? { id: inv.id, token: inv.payToken } : null;
+    return inv ? { id: inv.id, token: inv.payToken, acct: inv.acctNumber, bank: inv.bankName, name: inv.acctName } : null;
   });
   if (!heroId) throw new Error("hero invoice not found after create");
-  console.log(`hero invoice: ${heroId.id}`);
-  await zoomTo(page, ".created-acct", 1.6, DRY ? 300 : 3200); // push in on the freshly minted VA
+  console.log(`hero invoice: ${heroId.id} · VA ${heroId.acct} (${heroId.bank})`);
+  // element-zoom the success modal itself — a page-level transform would re-anchor the fixed
+  // modal-bg to the document and throw the modal out of the viewport (the blank-blur bug)
+  await zoomElement(page, ".modal", 1.22, DRY ? 300 : 3800);
   await endBeat(page); // hold the VA modal on screen through the rest of the narration
   await page.getByRole("button", { name: "Done" }).click();
-
-  // 05 — the customer's pay page
-  await beat(page, "05-paypage");
+  // pre-navigate to the customer's pay page during this beat's tail
   await page.goto(`${BASE}/pay/${heroId.token}`, { waitUntil: "domcontentloaded" });
+
+  // 05 — the customer's pay page (already navigated; the phone motion screen splices AFTER this beat)
+  await beat(page, "05-paypage");
   await page.waitForTimeout(1500);
   await smoothScroll(page, 350, 90, DRY ? 20 : 100);
   const wa = page.locator("text=Share this on WhatsApp");
   if (await wa.count()) await wa.first().hover();
+  await smoothScroll(page, -350, 90, DRY ? 20 : 80); // end the beat back on the account details
 
-  // 06 — money lands; the page flips by itself
+  // 06 — money lands; the page flips by itself.
+  // In the final cut the phone-transfer motion screen sits between 05 and 06, so the transfer
+  // has "just been sent" — fire the webhook right away.
   await beat(page, "06-flip");
-  await atBeatTime(page, DRY ? 0 : 7); // narration explains the webhook first
+  await atBeatTime(page, DRY ? 0 : 1.5);
   await fireWebhook(heroId.id, 85000);
   console.log("hero webhook fired");
   await pollInvoiceStatus(page, heroId.id, "paid", 40000); // reconciled server-side
@@ -304,21 +349,22 @@ try {
     throw new Error("pay page never showed settled");
   }
   console.log("pay page shows settled");
-  await zoomTo(page, ".pay-settled", 1.5, DRY ? 300 : 3500); // push in on the live settled flip
-
-  // 07 — the range: partial → overpaid (on the live feed)
-  await beat(page, "07-range");
+  // page-level push-in is safe here: the public pay page has no fixed chrome
+  await zoomTo(page, ".pay-settled", 1.5, DRY ? 300 : 4200);
+  // pre-navigate to the live feed during this beat's tail
+  await endBeat(page);
   await page.goto(BASE + "/app", { waitUntil: "domcontentloaded" });
   await page.locator(".feed .event").first().waitFor({ timeout: 20000 }).catch(() => {});
-  await zoomTo(page, ".feed .event", 1.5, DRY ? 300 : 2600); // the hero payment, top of the live feed
-  await atBeatTime(page, DRY ? 0 : 8);
+
+  // 07 — the payment on the live feed (short beat; the hard-cases motion screen splices after it)
+  await beat(page, "07-range");
+  await zoomElement(page, ".feed .event", 1.18, DRY ? 300 : 3200); // the hero payment, top of the feed
+  // land the partial + overpaid history now (shown in the statement beat after the motion screen)
   await fireWebhook(rangeInv.id, 20000);
   await pollInvoiceStatus(page, rangeInv.id, "partial");
-  await page.waitForTimeout(2600); // let the 2s poll paint it
-  await atBeatTime(page, DRY ? 0 : 15);
   await fireWebhook(rangeInv.id, 25000);
   await pollInvoiceStatus(page, rangeInv.id, "overpaid");
-  await page.waitForTimeout(2600);
+  await page.waitForTimeout(2600); // let the 2s poll paint both events
 
   // 08 — statement drawer
   await beat(page, "08-statement");
@@ -344,9 +390,10 @@ try {
   await card.getByRole("button", { name: /Ask AI/ }).click();
   await card.locator(".qs-why").waitFor({ timeout: 25000 }); // AI (≤8s) or heuristic fallback
   console.log("AI suggestion shown");
-  await card.locator(".qs-why").evaluate((el) => (el.id = "zoom-target-qswhy"));
-  await zoomTo(page, "#zoom-target-qswhy", 1.55, DRY ? 300 : 4000); // let the AI's reasoning be read
-  await atBeatTime(page, DRY ? 0 : 22); // let the reasoning land
+  // element-zoom the whole card (the fixed sidebar rules out a page-level transform here)
+  await card.evaluate((el) => (el.id = "zoom-target-qrow"));
+  await zoomElement(page, "#zoom-target-qrow", 1.28, DRY ? 300 : 5000); // let the reasoning be read
+  await atBeatTime(page, DRY ? 0 : 20); // let the reasoning land
   await card.getByRole("button", { name: "Accept", exact: true }).click();
   await pollInvoiceStatus(page, targetInv.id, "paid");
   console.log("quarantine accepted → reconciled to paid");
@@ -356,7 +403,8 @@ try {
   await page.goto(BASE + "/app", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: /Generate brief/ }).click();
   await page.locator(".brief-text").waitFor({ timeout: 25000 });
-  await zoomTo(page, ".brief-text", 1.45, DRY ? 300 : 2800);
+  // element-zoom the brief card itself (fixed sidebar again rules out the page transform)
+  await zoomElement(page, ".railcard.brief", 1.32, DRY ? 300 : 4200);
   await atBeatTime(page, DRY ? 0 : 10);
   const syncNote = page.locator("text=last synced").first();
   if (await syncNote.count()) await syncNote.hover();

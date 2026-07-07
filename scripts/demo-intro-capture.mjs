@@ -15,9 +15,13 @@ const PAD = 1.2;
 const PARTS = {
   intro: ["i1-problem", "i2-pain", "i3-idea", "i4-usecases", "i5-live"],
   outro: ["o1-close"],
+  m0: ["m0-transfer"],
+  m1: ["m1-hardcases"],
 };
 const which = process.argv[2] || "both";
-const html = pathToFileURL(path.join(process.cwd(), "scripts", "demo-intro.html")).href;
+// extra query args (e.g. acct/bank/name/amt for the phone slide): --acct=1234567890
+const query = process.argv.slice(3).filter((a) => a.startsWith("--")).map((a) => a.slice(2)).join("&");
+const html = pathToFileURL(path.join(process.cwd(), "scripts", "demo-intro.html")).href + (query ? `?${query}` : "");
 
 async function record(part) {
   const ids = PARTS[part];
@@ -56,3 +60,5 @@ async function record(part) {
 
 if (which === "both" || which === "intro") await record("intro");
 if (which === "both" || which === "outro") await record("outro");
+if (which === "m0") await record("m0");
+if (which === "m1") await record("m1");
