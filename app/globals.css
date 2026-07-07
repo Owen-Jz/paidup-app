@@ -1340,3 +1340,7 @@ table.inv tr:hover td{background:var(--paper-2)}
   color:rgba(250,246,237,.65);text-transform:uppercase}
 @keyframes dlbIn{from{opacity:0}to{opacity:1}}
 @media (max-width:720px){.demo-lightbox-close{top:auto;bottom:-48px}}
+
+/* the lightbox portals to <body>; keep it above every app layer (drawer 50, header 40) */
+.demo-lightbox{z-index:500}
+
