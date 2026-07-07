@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
 
   // Demo a clawback: reverse the most recent payment on the chosen invoice.
   if (type === "reversal") {
-    const inv = invoiceRef ? getTenantInvoice(invoiceRef, session.tid) : undefined;
+    const inv = invoiceRef ? await getTenantInvoice(invoiceRef, session.tid) : undefined;
     const last = inv?.payments.filter((p) => p.outcome !== "reversed").slice(-1)[0];
     if (!inv || !last) return NextResponse.json({ error: "no reversible payment on that invoice" }, { status: 400 });
-    return NextResponse.json(reversePayment(last.transactionId));
+    return NextResponse.json(await reversePayment(last.transactionId));
   }
 
   const amountR = posAmount(body.amount);
@@ -36,11 +36,11 @@ export async function POST(req: NextRequest) {
 
   // Only this tenant's invoices can be targeted; a foreign ref just quarantines in THIS workspace.
   const ref = invoiceRef && invoiceRef !== "__none" ? invoiceRef : null;
-  const inv = ref ? getTenantInvoice(ref, session.tid) : undefined;
+  const inv = ref ? await getTenantInvoice(ref, session.tid) : undefined;
   const sender = inv ? inv.customer : "UNKNOWN SENDER";
   const bankName = BANKS[Math.floor(amount) % BANKS.length];
 
-  const result = applyPayment({
+  const result = await applyPayment({
     transactionId: `tx_sim_${Date.now()}`,
     // Only a ref the CALLER owns is allowed to match; anything else quarantines in their workspace
     // (a simulated payment must never be able to credit another tenant's invoice).

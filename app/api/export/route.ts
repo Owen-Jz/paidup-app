@@ -16,12 +16,12 @@ export async function GET(req: NextRequest) {
   let csv: string;
   let filename: string;
   if (id) {
-    const inv = getTenantInvoice(id, session.tid); // another tenant's statement reads as 404
+    const inv = await getTenantInvoice(id, session.tid); // another tenant's statement reads as 404
     if (!inv) return new Response("invoice not found", { status: 404 });
     csv = statementCsv(inv);
     filename = `paidup-statement-${safeFilenamePart(inv.id)}.csv`;
   } else {
-    csv = ledgerCsv(listInvoices(session.tid));
+    csv = ledgerCsv(await listInvoices(session.tid));
     filename = `paidup-reconciliation-ledger.csv`;
   }
 

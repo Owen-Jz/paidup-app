@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const created = createTenantWithOwner({
+  const created = await createTenantWithOwner({
     businessName: bizR.value, email: emailR.value, passwordHash: hashPassword(passR.value),
   });
   if ("error" in created) {

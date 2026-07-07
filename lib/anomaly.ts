@@ -10,6 +10,7 @@ export interface Anomaly {
   message: string;
   invoiceId?: string;
   transactionId?: string;
+  key: string; // stable identity so an operator's "confirm/dismiss" persists across polls
 }
 
 const DUP_WINDOW_MS = 10 * 60 * 1000; // two identical transfers within 10 min look like a double-send
@@ -34,6 +35,7 @@ export function scanAnomalies(invoices: Invoice[], quarantine: FeedEvent[]): Ano
     if (inv.amount > 0 && inv.paid >= inv.amount * 1.5) {
       out.push({
         severity: "high", type: "large_overpayment", invoiceId: inv.id,
+        key: `large_overpayment:${inv.id}`,
         message: `Received ₦${Math.round(inv.paid).toLocaleString()} on a ₦${Math.round(inv.amount).toLocaleString()} invoice (≥150%) — verify before settling.`,
       });
     }
@@ -51,6 +53,7 @@ export function scanAnomalies(invoices: Invoice[], quarantine: FeedEvent[]): Ano
             ms(sorted[i].time) - ms(sorted[i - 1].time) <= DUP_WINDOW_MS) {
           out.push({
             severity: "high", type: "possible_duplicate", invoiceId: inv.id, transactionId: sorted[i].transactionId,
+            key: `possible_duplicate:${inv.id}:${sorted[i].transactionId}`,
             message: `Possible duplicate: 2× ₦${Math.round(sorted[i].amount).toLocaleString()} from ${sorted[i].sender} within 10 min.`,
           });
           break;
@@ -70,6 +73,7 @@ export function scanAnomalies(invoices: Invoice[], quarantine: FeedEvent[]): Ano
     if (list.length >= 2) {
       out.push({
         severity: "medium", type: "repeat_unmatched",
+        key: `repeat_unmatched:${acct}`,
         message: `${list.length} unmatched transfers from account •••${acct.slice(-4)} (${list[0].customer}) — a payer who never includes a reference.`,
       });
     }
@@ -87,6 +91,7 @@ export function scanAnomalies(invoices: Invoice[], quarantine: FeedEvent[]): Ano
     if (ids.size >= 3) {
       out.push({
         severity: "info", type: "multi_invoice_payer",
+        key: `multi_invoice_payer:${acct}`,
         message: `One account (•••${acct.slice(-4)}) is settling ${ids.size} invoices — confirm it's the same customer.`,
       });
     }

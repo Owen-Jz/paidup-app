@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const invoiceId = idR.value;
 
   // Tenant-scoped lookup: another workspace's invoice reads as "not found", never theirs to refund.
-  const inv = getTenantInvoice(invoiceId, session.tid);
+  const inv = await getTenantInvoice(invoiceId, session.tid);
   if (!inv) return NextResponse.json({ error: "invoice not found" }, { status: 404 });
   if (inv.status !== "overpaid") return NextResponse.json({ error: "invoice is not overpaid" }, { status: 400 });
 
@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
         live = true;
       } catch (e) {
         // transferToBank throws unless data.status === SUCCESS — a genuine non-settlement.
-        if (!demo) return NextResponse.json({ error: "refund transfer did not settle — ledger unchanged", detail: String((e as Error)?.message ?? e) }, { status: 502 });
+        // Keep the raw upstream (Nomba) message server-side; never echo it to the client.
+        console.error(`[refund] ${invoiceId} transfer failed:`, String((e as Error)?.message ?? e));
+        if (!demo) return NextResponse.json({ error: "refund transfer did not settle — ledger unchanged" }, { status: 502 });
       }
     } else if (!demo) {
       return NextResponse.json({ error: "cannot refund: payer bank details unavailable" }, { status: 422 });
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Reached when: the transfer settled (live), OR this is an explicit demo / unconfigured build.
-  const result = markRefunded(invoiceId, session.tid);
+  const result = await markRefunded(invoiceId, session.tid);
   if (!result) return NextResponse.json({ error: "could not refund" }, { status: 500 });
   return NextResponse.json({ ok: true, refunded: result.refunded, live });
 }

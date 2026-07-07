@@ -28,13 +28,13 @@ export async function POST(req: NextRequest) {
     if (!invR.ok) return NextResponse.json({ error: invR.error }, { status: 400 });
     const invoiceId = invR.value;
     // Store enforces that the caller's tenant owns BOTH the payment and the target invoice.
-    const result = resolveQuarantineToInvoice(transactionId, invoiceId, session.tid);
+    const result = await resolveQuarantineToInvoice(transactionId, invoiceId, session.tid);
     if (!result) return NextResponse.json({ error: "could not assign (not quarantined / unknown invoice)" }, { status: 400 });
     return NextResponse.json({ ok: true, outcome: result.outcome, invoiceId: result.invoice.id });
   }
 
   if (action === "bounce") {
-    const ev = getEvent(transactionId);
+    const ev = await getEvent(transactionId);
     if (!ev || ev.outcome !== "quarantine" || ev.tenantId !== session.tid) return NextResponse.json({ error: "not a quarantined payment" }, { status: 400 });
     const demo = process.env.NODE_ENV !== "production" || process.env.DEMO_MODE === "1"; // mirrors simulate/refund
     let live = false;
@@ -55,13 +55,15 @@ export async function POST(req: NextRequest) {
           });
           live = true;
         } catch (e) {
-          if (!demo) return NextResponse.json({ error: "bounce transfer did not settle — payment left quarantined", detail: String((e as Error)?.message ?? e) }, { status: 502 });
+          // Keep the raw upstream (Nomba) message server-side; never echo it to the client.
+          console.error(`[quarantine] bounce ${transactionId} failed:`, String((e as Error)?.message ?? e));
+          if (!demo) return NextResponse.json({ error: "bounce transfer did not settle — payment left quarantined" }, { status: 502 });
         }
       } else if (!demo) {
         return NextResponse.json({ error: "cannot bounce: sender bank details unavailable" }, { status: 422 });
       }
     }
-    const ok = markQuarantineBounced(transactionId, session.tid);
+    const ok = await markQuarantineBounced(transactionId, session.tid);
     if (!ok) return NextResponse.json({ error: "could not bounce" }, { status: 500 });
     return NextResponse.json({ ok: true, live });
   }

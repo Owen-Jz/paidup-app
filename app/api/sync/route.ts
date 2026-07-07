@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { nombaConfigured, getVirtualAccountTransactions } from "@/lib/nomba";
-import { applyPayment, listInvoices } from "@/lib/store";
+import { nombaConfigured, getVirtualAccountTransactions, getSubAccountBalance } from "@/lib/nomba";
+import { applyPayment, listInvoices, DEMO_TENANT_ID } from "@/lib/store";
 import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function POST() {
     });
   }
 
-  const open = listInvoices(session.tid).filter((i) => i.status === "awaiting" || i.status === "partial");
+  const open = (await listInvoices(session.tid)).filter((i) => i.status === "awaiting" || i.status === "partial");
   let scanned = 0, applied = 0, duplicates = 0, quarantined = 0;
   const errors: string[] = [];
 
@@ -31,7 +31,7 @@ export async function POST() {
       const credits = await getVirtualAccountTransactions(inv.acctNumber, inv.id);
       for (const c of credits) {
         scanned++;
-        const r = applyPayment({
+        const r = await applyPayment({
           transactionId: c.transactionId,
           aliasAccountReference: c.aliasAccountReference,
           amount: c.amount,
@@ -54,10 +54,19 @@ export async function POST() {
     }
   }
 
+  // Ground-truth cash check: the sub-account balance is where every VA credit sweeps. It's a
+  // GLOBAL figure (all tenants collect into the one hackathon sub-account), so only the
+  // operator/demo workspace may see it — any other tenant's view stays strictly tenant-scoped.
+  let balance: { amount: number; currency: string } | null = null;
+  if (session.tid === DEMO_TENANT_ID) {
+    try { balance = await getSubAccountBalance(); } catch { /* non-fatal — omit the figure */ }
+  }
+
   return NextResponse.json({
     configured: true,
     accountsChecked: open.length,
     scanned, applied, duplicates, quarantined,
+    ...(balance ? { balance } : {}),
     ...(errors.length ? { errors } : {}),
   });
 }

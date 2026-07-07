@@ -19,7 +19,7 @@ export interface User {
   tokenVersion: number;  // bump to invalidate every outstanding session token
   createdAt: string;
 }
-export type PaymentOutcome = InvoiceStatus | "duplicate" | "quarantine" | "refunded" | "reversed";
+export type PaymentOutcome = InvoiceStatus | "duplicate" | "quarantine" | "refunded" | "reversed" | "withdrawal";
 
 // Typed shape of the Nomba payment_success webhook (only the fields we read).
 export interface NombaPaymentWebhook {
@@ -35,6 +35,7 @@ export interface NombaPaymentWebhook {
       transactionAmount?: number | string;
       aliasAccountReference?: string;
       narration?: string;
+      sessionId?: string;
     };
     customer?: { senderName?: string; accountNumber?: string; bankCode?: string; bankName?: string };
   };
@@ -50,6 +51,14 @@ export interface Payment {
   narration?: string;
   time: string;              // ISO
   outcome: Exclude<PaymentOutcome, "quarantine">;
+  sessionId?: string;        // Nomba bank-network session ID — used for requery
+}
+
+// A single billed line on an invoice. The invoice's `amount` is the (rounded) SUM of these — line
+// items are presentation/metadata; `amount` stays the authoritative reconciliation target.
+export interface LineItem {
+  description: string;
+  amount: number;
 }
 
 export interface Invoice {
@@ -58,19 +67,44 @@ export interface Invoice {
   customer: string;
   customerEmail?: string;
   description: string;
+  lineItems?: LineItem[];    // optional itemised breakdown; sum === amount
   amount: number;            // expected total
   paid: number;              // accumulated received
   status: InvoiceStatus;
   createdAt: string;
   dueLabel?: string;
+  dueDate?: string;          // ISO — when payment is expected; drives overdue detection + reminders
   // virtual account (from Nomba create response, or mocked in dev)
   acctNumber: string;
   acctName: string;
   bankName: string;
+  // true when the VA is a real Nomba-minted account (deleting the invoice can then expire it upstream)
+  vaLive?: boolean;
   payments: Payment[];
   // Unguessable token for the public, shareable customer payment page (/pay/<token>). Random, so
   // invoice ids stay un-enumerable from the public surface. (POLISH M1)
   payToken?: string;
+}
+
+// A payout of settled collections to the merchant's own bank account.
+//   pending  — recorded BEFORE/at the transfer; money may be in flight. Reserves the balance.
+//   settled  — Nomba confirmed SUCCESS (live money moved) OR a labelled demo entry.
+//   failed   — provably no money left Nomba (pre-debit rejection); frees the reserved balance.
+// The balance a tenant can withdraw counts pending + settled (never failed), so an in-flight or
+// settled payout can NEVER be spent twice even if the client is told it "failed".
+export type WithdrawalStatus = "pending" | "settled" | "failed";
+export interface Withdrawal {
+  id: string;            // wd_<client ref> — idempotency identity for replays
+  tenantId: string;
+  amount: number;
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;   // bank-confirmed via lookup, never user-typed
+  narration: string;
+  status: WithdrawalStatus;
+  live: boolean;         // true only when real money actually settled (status==="settled" && !demo)
+  time: string;          // ISO — created
+  updatedAt?: string;    // ISO — last status change
 }
 
 export interface FeedEvent {

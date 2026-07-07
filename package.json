@@ -9,11 +9,13 @@
     "build": "next build",
     "start": "next start -p 3100",
     "test:e2e": "next build && playwright test",
-    "test": "node --test lib/reconcile.test.ts lib/verify.test.ts lib/resolver.test.ts lib/export.test.ts lib/auth.test.ts lib/anomaly.test.ts lib/summary.test.ts lib/ai.test.ts lib/security-headers.test.ts lib/ratelimit.test.ts lib/validate.test.ts lib/store.test.ts lib/audit.test.ts lib/receipt.test.ts lib/password.test.ts lib/tenant.test.ts"
+    "test": "node --env-file=.env.local --test lib/reconcile.test.ts lib/verify.test.ts lib/resolver.test.ts lib/export.test.ts lib/auth.test.ts lib/anomaly.test.ts lib/summary.test.ts lib/ai.test.ts lib/security-headers.test.ts lib/ratelimit.test.ts lib/validate.test.ts lib/store.test.ts lib/audit.test.ts lib/receipt.test.ts lib/password.test.ts lib/tenant.test.ts lib/share.test.ts lib/due.test.ts"
   },
   "dependencies": {
     "gsap": "^3.15.0",
+    "lenis": "^1.3.25",
     "lucide-react": "^1.23.0",
+    "mongodb": "^6.21.0",
     "next": "14.2.5",
     "qrcode": "^1.5.4",
     "react": "18.3.1",

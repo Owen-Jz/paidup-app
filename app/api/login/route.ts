@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const user = getUserByEmail(emailR.value);
+  const user = await getUserByEmail(emailR.value);
   // Always run scrypt (against a decoy when the user is unknown) — same generic error either way.
   const ok = verifyPassword(passR.value, user?.passwordHash ?? DECOY_HASH) && Boolean(user);
   if (!ok || !user) {

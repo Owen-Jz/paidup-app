@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function POST() {
   const session = await requireSession();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const snap = snapshot(listInvoices(session.tid), listQuarantine(session.tid));
+  const snap = snapshot(await listInvoices(session.tid), await listQuarantine(session.tid));
   const { summary, source } = await aiSummary(snap);
   return NextResponse.json({ summary, source, aiAvailable: aiConfigured() });
 }

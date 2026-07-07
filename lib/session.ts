@@ -20,9 +20,9 @@ export async function requireSession(): Promise<Session | null> {
   if (!token) return null;
   const payload = await verifySession(token, sessionSecret());
   if (!payload) return null;
-  const user = getUserById(payload.uid);
+  const user = await getUserById(payload.uid);
   if (!user || user.tokenVersion !== payload.ver || user.tenantId !== payload.tid) return null;
-  const tenant = getTenant(user.tenantId);
+  const tenant = await getTenant(user.tenantId);
   if (!tenant) return null;
   return { user, tenant, tid: tenant.id };
 }

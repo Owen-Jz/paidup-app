@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const session = await requireSession();
   if (!session) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const v = verifyAudit();
-  const entries = getAudit().filter(
+  const v = await verifyAudit();
+  const entries = (await getAudit()).filter(
     (e) => e.tenantId === session.tid || (e.tenantId == null && session.tid === DEMO_TENANT_ID),
   );
 
