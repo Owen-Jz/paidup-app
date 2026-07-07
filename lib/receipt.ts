@@ -15,3 +15,14 @@ export function receiptHash(inv: Invoice): string {
   ].join("|");
   return crypto.createHash("sha256").update(canon).digest("hex").slice(0, 16);
 }
+
+/** Active (non-reversed) payment total, last payment time, and count — for the verification page. */
+export function paymentSummary(inv: Invoice): { received: number; lastTime: string | null; count: number } {
+  const active = inv.payments.filter((p) => p.outcome !== "reversed");
+  const received = active.reduce((s, p) => s + p.amount, 0);
+  return {
+    received: Math.round(received * 100) / 100,
+    lastTime: active.length ? active[active.length - 1].time : null,
+    count: active.length,
+  };
+}

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { getInvoiceByToken } from "@/lib/store";
 import { receiptNumber, receiptHash } from "@/lib/receipt";
 import { NGN } from "@/lib/format";
+import { qrSvg } from "@/lib/qr";
 import { PrintButton } from "./PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +13,8 @@ export const metadata: Metadata = { title: "Receipt — PaidUp", robots: { index
 // Branded, print-to-PDF receipt (POLISH M2). Public via the unguessable pay token. Lists the payments
 // received against the invoice with a tamper-evident verification code. "Print / Save as PDF" yields a
 // clean document (print CSS hides the app chrome). Exposes only payer-relevant fields.
-export default function ReceiptPage({ params }: { params: { token: string } }) {
-  const inv = getInvoiceByToken(params.token);
+export default async function ReceiptPage({ params }: { params: { token: string } }) {
+  const inv = await getInvoiceByToken(params.token);
 
   if (!inv) {
     return (
@@ -28,11 +30,16 @@ export default function ReceiptPage({ params }: { params: { token: string } }) {
   const received = inv.payments.reduce((s, p) => s + (p.outcome === "reversed" ? 0 : p.amount), 0);
   const balance = Math.max(Math.round((inv.amount - inv.paid) * 100) / 100, 0);
 
+  const h = headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host") ?? "paidup.site"}`;
+  const verifyUrl = `${origin}/pay/${inv.payToken}/verify`;
+  const verifyQr = await qrSvg(verifyUrl);
+
   return (
     <main className="receipt-page">
       <div className="receipt-doc">
         <div className="rcpt-top">
-          <div className="pay-brand"><span className="mark">P</span> PaidUp</div>
+          <div className="pay-brand"><img src="/logo.svg" alt="" width={26} height={26} style={{ borderRadius: 6, verticalAlign: "middle" }} /> PaidUp</div>
           <div className="rcpt-meta">
             <div><span>Receipt</span><b className="mono">{receiptNumber(inv)}</b></div>
             <div><span>Invoice</span><b className="mono">{inv.id}</b></div>
@@ -79,6 +86,10 @@ export default function ReceiptPage({ params }: { params: { token: string } }) {
           <span>Verification code</span>
           <code>{receiptHash(inv)}</code>
           <p>This code is derived from the receipt&apos;s figures — if any amount is altered it no longer matches PaidUp&apos;s records.</p>
+          <div className="rcpt-verify-qr" style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
+            <div aria-hidden="true" style={{ width: 96, height: 96 }} dangerouslySetInnerHTML={{ __html: verifyQr }} />
+            <span style={{ fontSize: 12, color: "var(--faint)" }}>Scan to verify this payment is real at <span className="mono">{verifyUrl}</span></span>
+          </div>
         </div>
 
         <div className="rcpt-actions print-hide">

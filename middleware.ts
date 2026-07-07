@@ -12,7 +12,7 @@ import { AUTH_COOKIE, sessionSecret, verifySession } from "@/lib/auth";
 // (lib/session.ts) additionally checks tokenVersion (revocation) and that the user still exists.
 export const config = { matcher: ["/app/:path*", "/get-started", "/api/:path*"] };
 
-const PUBLIC_API = ["/api/webhook", "/api/login", "/api/signup", "/api/logout"];
+const PUBLIC_API = ["/api/webhook", "/api/login", "/api/signup", "/api/logout", "/api/pay-status"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

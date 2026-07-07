@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "missing transactionId" }, { status: 400 });
     }
     try {
-      const result = reversePayment(t.transactionId, t.time);
+      const result = await reversePayment(t.transactionId, t.time);
       return NextResponse.json({ ok: true, outcome: result.outcome, invoiceId: result.invoiceId });
     } catch (e) {
       console.error("[webhook] reversal failed:", e); // detail stays server-side
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = applyPayment({
+    const result = await applyPayment({
       transactionId: t.transactionId,
       aliasAccountReference: t.aliasAccountReference ?? null,
       amount,
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
       bankName: c.bankName,
       narration: t.narration,
       time: t.time,
+      sessionId: t.sessionId,
     });
     return NextResponse.json({ ok: true, outcome: result.outcome, invoiceId: result.invoiceId });
   } catch (e) {
