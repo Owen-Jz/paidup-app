@@ -1,10 +1,13 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ShieldCheck, ArrowRight, Play, CheckCircle2, Landmark, ArrowRightLeft,
-  Webhook, Scale, Undo2, Copy, ShieldAlert, FileDown, Lock, Check, X,
+  Scale, Undo2, Copy, ShieldAlert, FileDown, Lock, Check, X,
 } from "lucide-react";
 import { ReconcileDemo } from "@/components/ReconcileDemo";
 import { LandingMotion } from "@/components/LandingMotion";
+import { StoryScroll } from "@/components/StoryScroll";
+import { LoopScroll } from "@/components/LoopScroll";
 
 export default function Landing() {
   return (
@@ -13,7 +16,7 @@ export default function Landing() {
 
       <div className="site-head-wrap" data-head>
         <header className="site-head">
-          <Link href="/" className="logo"><span className="mark">P</span><span>PaidUp</span></Link>
+          <Link href="/" className="logo"><img src="/logo.svg" alt="" className="brand-logo" width={32} height={32} /><span>PaidUp</span></Link>
           <nav className="nav-links">
             <a href="#problem">The problem</a>
             <a href="#how">How it works</a>
@@ -25,49 +28,102 @@ export default function Landing() {
         </header>
       </div>
 
-      {/* ---------------- HERO ---------------- */}
-      <section className="hero">
+      {/* ---------------- HERO — bento ---------------- */}
+      <section className="bento-hero" aria-label="PaidUp">
         <div className="lp-glow" aria-hidden="true" />
 
-        <div className="lp-hero-copy">
-          <div className="lp-eyebrow lp-anim" style={{ animationDelay: "0s" }}>
+        {/* A · headline + CTAs */}
+        <div className="bh-head bh-in" style={{ animationDelay: "0s" }}>
+          <div className="lp-eyebrow">
             <ShieldCheck size={15} /> Built on <b>Nomba</b> · bank-grade HMAC
           </div>
-          <h1 className="lp-anim" style={{ animationDelay: ".08s" }}>
-            Every transfer,<br />on the <em>right invoice.</em>
-          </h1>
-          <p className="lede lp-anim" style={{ animationDelay: ".16s" }}>
-            Give each invoice its own account number. Money reconciles itself the moment it lands —
-            <b> paid, partial, or flagged.</b>
-          </p>
-          <div className="cta lp-anim" style={{ animationDelay: ".24s" }}>
+          <h1>Every transfer,<br />on the <em>right invoice.</em></h1>
+          <div className="cta">
             <Link href="/get-started" className="btn-xl">Start free <ArrowRight size={18} /></Link>
             <Link href="/app" className="btn-ghost-xl"><Play size={16} /> See it live</Link>
           </div>
-          <div className="lp-microtrust lp-anim" style={{ animationDelay: ".32s" }}>
-            <CheckCircle2 size={15} /> Sandbox-ready · no card · first invoice in 60 seconds
+          <div className="lp-microtrust">
+            <CheckCircle2 size={15} /> No card · first invoice in 60 seconds
           </div>
         </div>
 
-        <div className="lp-hero-demo lp-anim" style={{ animationDelay: ".3s" }}>
-          <ReconcileDemo />
+        {/* B · the one-line promise */}
+        <div className="bh-card bh-blurb bh-in" style={{ animationDelay: ".09s" }}>
+          <svg className="bh-watermark" viewBox="0 0 64 64" aria-hidden="true" fill="none">
+            <g stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+              <rect x="3" y="3" width="58" height="58" rx="15" />
+              <path d="M22 15 v34" />
+              <path d="M22 15 h9 a11.5 11.5 0 0 1 0 23 h-9" />
+              <circle cx="43.5" cy="45.5" r="10" />
+              <path d="M39.2 45.8 l3 3.1 l5.9 -6.7" />
+            </g>
+          </svg>
+          <span className="bh-icon" aria-hidden="true">₦</span>
+          <b>Every invoice gets its own virtual account.</b>
+          <p>Your customer just transfers from any bank app — PaidUp already knows exactly what they paid for. No reference. No guessing.</p>
+          <div className="bh-vacct" aria-hidden="true">
+            <span className="mono">Virtual account · INV-1042</span>
+            <b className="mono">3049 420 327</b>
+          </div>
+        </div>
+
+        {/* D · the engine room: the SME owner + what she can do */}
+        <div className="bh-card bh-show bh-in" style={{ animationDelay: ".18s" }}>
+          <div className="bh-photo">
+            <span className="px p1" aria-hidden="true" /><span className="px p2" aria-hidden="true" />
+            <span className="px p3" aria-hidden="true" /><span className="px p4" aria-hidden="true" />
+            <span className="px p5" aria-hidden="true" />
+            <Image src="/hero-sme.png" alt="A business owner smiling at her phone as her invoices reconcile themselves" width={512} height={462} priority />
+          </div>
+          <div className="bh-pills">
+            <span className="bh-pill gold"><i><Landmark size={16} /></i> Mint a virtual account</span>
+            <span className="bh-pill mint"><i><ArrowRightLeft size={16} /></i> Auto-reconcile transfers</span>
+            <span className="bh-pill amber"><i><Undo2 size={16} /></i> Refund overpayments</span>
+            <span className="bh-pill line"><i><FileDown size={16} /></i> Export the audit ledger</span>
+          </div>
+        </div>
+
+        {/* C + E · live ticker over the interactive demo */}
+        <div className="bh-right">
+          <div className="bh-card bh-ticker bh-in" style={{ animationDelay: ".27s" }}>
+            <span className="bh-ticker-lab mono"><i />LIVE · reconciling</span>
+            <div className="bh-ticker-clip" aria-hidden="true">
+              <div className="bh-ticker-track">
+                {[0, 1].map((n) => (
+                  <div key={n} className="bh-ticker-set">
+                    <div className="bh-tick"><span className="mono">₦450,000 → INV-1042</span><b className="ok">PAID</b></div>
+                    <div className="bh-tick"><span className="mono">₦28,000 → INV-1043</span><b className="part">PARTIAL</b></div>
+                    <div className="bh-tick"><span className="mono">₦1,300,000 → INV-1046</span><b className="ok">PAID</b></div>
+                    <div className="bh-tick"><span className="mono">₦75,500 → no match</span><b className="held">HELD</b></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="bh-demo bh-in" style={{ animationDelay: ".36s" }}>
+            <ReconcileDemo />
+          </div>
         </div>
       </section>
 
-      {/* ---------------- TRUST STRIP ---------------- */}
+      {/* ---------------- TRUST STRIP (immediately under the hero) ---------------- */}
       <div className="lp-trust">
         <div className="lp-trust-in">
           <div className="lp-trust-lead">
             <ShieldCheck size={18} />
-            <span>Powered by <b>Nomba</b> virtual accounts · 9-field HMAC verified · audit-grade ledger</span>
+            <span>Built on <b>Nomba</b> virtual accounts — <b>9-field HMAC-verified</b> webhooks, an <b>audit-grade</b> ledger.</span>
           </div>
           <div className="lp-trust-stats">
-            <div><b>Every</b><span>transfer matched or flagged</span></div>
-            <div><b>Audit</b><span>-grade ledger + CSV</span></div>
-            <div><b data-count="60" data-suffix="s">60s</b><span>to first invoice</span></div>
+            <div><b data-count="100" data-suffix="%">100%</b><span>of transfers auto-matched or safely flagged</span></div>
+            <div><b>Zero</b><span>payments matched by hand</span></div>
+            <div><b data-count="60" data-suffix="s">60s</b><span>to your first live invoice</span></div>
+            <div><b>CSV</b><span>one-tap audit-grade export</span></div>
           </div>
         </div>
       </div>
+
+      {/* ---------------- THE STORY: evening ritual → PaidUp ends that ---------------- */}
+      <StoryScroll />
 
       {/* ---------------- THE PROBLEM ---------------- */}
       <section className="section" id="problem">
@@ -77,61 +133,43 @@ export default function Landing() {
           <p className="section-lead">One account, every payer, a flood of look-alike &ldquo;payment&rdquo; narrations. PaidUp deletes the guesswork at the source.</p>
         </div>
 
-        <div className="ba" data-ba data-reveal style={{ marginTop: 34 }}>
-          <div className="ba-col before">
-            <span className="kicker" style={{ color: "var(--attn)" }}>Today, without PaidUp</span>
-            <h3>One account. Every payer.</h3>
-            <div className="ba-acct">0123456789 · the business account</div>
+        <div className="cmp" data-ba data-reveal style={{ marginTop: 40 }}>
+          <div className="cmp-card without">
+            <div className="cmp-tag bad"><X size={15} /> Without PaidUp</div>
+            <h3>You are the reconciliation engine.</h3>
+            <div className="cmp-acct bad">
+              <b className="mono">0123456789</b>
+              <small>one account · every customer pays here</small>
+            </div>
             <ul>
-              <li><X size={17} /><span>&ldquo;Transfer from JOHN G — <span className="mono">Pymt for inv 1050</span>&rdquo;</span></li>
-              <li><X size={17} /><span><span className="mono">NIP/—/payment</span> · ₦20,000 — but against which invoice?</span></li>
-              <li><X size={17} /><span>A spreadsheet, opened every night, matched by hand.</span></li>
+              <li><span className="ic"><X size={14} /></span><span>&ldquo;Transfer from JOHN G — <span className="mono">Pymt for inv 1050</span>&rdquo; — is that this month&apos;s or last?</span></li>
+              <li><span className="ic"><X size={14} /></span><span><span className="mono">NIP/—/payment</span> · ₦20,000 — but against <em>which</em> invoice?</span></li>
+              <li><span className="ic"><X size={14} /></span><span>Every evening: open the spreadsheet, cross-check alerts, match by hand.</span></li>
             </ul>
+            <div className="cmp-foot bad">Result — hours lost, money mismatched, customers chased twice.</div>
           </div>
-          <div className="ba-col after">
-            <span className="kicker">With PaidUp</span>
-            <h3>One account. Per invoice.</h3>
-            <div className="ba-acct">3049420327 · INV-1042 only</div>
+
+          <div className="cmp-vs" aria-hidden="true"><span>vs</span></div>
+
+          <div className="cmp-card with">
+            <div className="cmp-tag good"><Check size={15} /> With PaidUp</div>
+            <h3>The account number does the matching.</h3>
+            <div className="cmp-acct good">
+              <b className="mono">3049420327</b>
+              <small>a dedicated account · for INV-1042 alone</small>
+            </div>
             <ul>
-              <li><Check size={17} /><span>The account number <b>is</b> the reference — nothing to type.</span></li>
-              <li><Check size={17} /><span>Transfer lands → matched instantly → invoice marked <b>Paid</b>.</span></li>
-              <li><Check size={17} /><span>Partial, overpaid and unmatched — all handled automatically.</span></li>
+              <li><span className="ic"><Check size={14} /></span><span>The account number <b>is</b> the reference — the customer types nothing.</span></li>
+              <li><span className="ic"><Check size={14} /></span><span>Transfer lands → matched instantly → invoice flips to <b>Paid</b>.</span></li>
+              <li><span className="ic"><Check size={14} /></span><span>Partial, overpaid and unmatched money — all handled for you.</span></li>
             </ul>
+            <div className="cmp-foot good">Result — reconciled the second money lands. Nothing typed by hand.</div>
           </div>
         </div>
       </section>
 
-      {/* ---------------- HOW IT WORKS ---------------- */}
-      <section className="section" id="how" style={{ paddingTop: 0 }}>
-        <div className="section-head" data-reveal>
-          <span className="kicker">The loop</span>
-          <h2 className="section-title">How money finds its invoice.</h2>
-          <p className="section-lead">Four steps, zero human matching. It runs the second funds arrive.</p>
-        </div>
-        <div className="loop" data-loop>
-          <span className="loop-coin" data-loop-coin aria-hidden="true">₦</span>
-          <div className="step" data-reveal>
-            <div className="stepic"><Landmark size={20} /></div>
-            <div className="no">01</div><h4>Provision</h4>
-            <p>Create an invoice. PaidUp mints a dedicated Nomba virtual account just for it.</p>
-          </div>
-          <div className="step" data-reveal>
-            <div className="stepic"><ArrowRightLeft size={20} /></div>
-            <div className="no">02</div><h4>Customer pays</h4>
-            <p>They transfer to that account number from any Nigerian bank — no portal, no login.</p>
-          </div>
-          <div className="step" data-reveal>
-            <div className="stepic"><Webhook size={20} /></div>
-            <div className="no">03</div><h4>Webhook</h4>
-            <p>Nomba fires a signed <span className="mono">payment_success</span> the instant funds land.</p>
-          </div>
-          <div className="step" data-reveal>
-            <div className="stepic"><CheckCircle2 size={20} /></div>
-            <div className="no">04</div><h4>Reconciled</h4>
-            <p>Matched by account reference, classified paid / partial / over, ledger updated live.</p>
-          </div>
-        </div>
-      </section>
+      {/* ---------------- HOW IT WORKS — pinned horizontal scroll ---------------- */}
+      <LoopScroll />
 
       {/* ---------------- WHY / CAPABILITIES ---------------- */}
       <section className="section" id="why" style={{ paddingTop: 0 }}>
@@ -192,7 +230,7 @@ export default function Landing() {
       <footer className="site-foot">
         <div className="in">
           <div className="brandcol">
-            <div className="logo"><span className="mark">P</span><span>PaidUp</span></div>
+            <div className="logo"><img src="/logo.svg" alt="" className="brand-logo" width={28} height={28} /><span>PaidUp</span></div>
             <p>Per-invoice reconciliation on Nomba. Give every invoice its own account number and let the money reconcile itself.</p>
           </div>
           <div className="lcols">

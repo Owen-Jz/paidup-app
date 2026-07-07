@@ -23,6 +23,11 @@ export function useDashboard() {
   const refresh = useCallback(async () => {
     try {
       const r = await fetch("/api/events", { cache: "no-store" });
+      if (r.status === 401) {
+        // Session expired (8h TTL) — this isn't a network problem, so don't show the retry banner.
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+        return;
+      }
       if (!r.ok) throw new Error(String(r.status));
       const d: DashboardData = await r.json();
       const top = d.events[0]?.id ?? null;
@@ -146,11 +151,13 @@ export function Chip({ status }: { status: PaymentOutcome | Invoice["status"] })
 const SYNC_EVERY_MS = 5 * 60_000;
 
 export function SyncStatus({ sync }: {
-  sync: () => Promise<{ configured: boolean; applied?: number; duplicates?: number; scanned?: number; message?: string } | null>;
+  sync: () => Promise<{ configured: boolean; applied?: number; duplicates?: number; scanned?: number; message?: string; balance?: { amount: number; currency: string } } | null>;
 }) {
   const [state, setState] = useState<"syncing" | "ok" | "off" | "err">("syncing");
   const [lastAt, setLastAt] = useState<number | null>(null);
   const [recovered, setRecovered] = useState(0);
+  // Operator-only ground truth: the Nomba sub-account balance (where every VA credit sweeps).
+  const [balance, setBalance] = useState<number | null>(null);
   const [, setTick] = useState(0); // re-render so "Xm ago" stays honest
   // `sync` is recreated on every poll render — hold it in a ref so the schedule effect can be
   // mount-only (otherwise each 2s poll would reset the interval and re-fire a sync).
@@ -169,6 +176,7 @@ export function SyncStatus({ sync }: {
       else {
         setLastAt(Date.now());
         setRecovered(res.applied ?? 0);
+        if (res.balance && Number.isFinite(res.balance.amount)) setBalance(res.balance.amount);
         setState("ok");
       }
     } catch {
@@ -197,6 +205,7 @@ export function SyncStatus({ sync }: {
       {state === "ok" && (
         <>
           ✓ last synced {ago}
+          {balance != null && <span title="Live Nomba sub-account balance — the settled cash every virtual-account credit sweeps into"> · {NGN(balance)} settled at Nomba</span>}
           {recovered > 0 && <span style={{ color: "var(--paid)" }}> · recovered {recovered} missed credit{recovered > 1 ? "s" : ""}</span>}
           {" "}<button style={linkStyle} onClick={run} title="Requery Nomba now (idempotent — can only repair, never double-credit)">sync now</button>
         </>

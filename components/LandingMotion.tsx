@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
+
+// GSAP pinning re-parents React-owned nodes (pin-spacers). Cleanup MUST run before React
+// removes the DOM on a route change — passive useEffect cleanup runs AFTER removal in React 18
+// (→ removeChild NotFoundError, the "Application error" on first nav to /login|/get-started).
+// A layout effect's cleanup runs synchronously pre-removal. SSR falls back to useEffect.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
  * Scroll choreography for the landing page. Progressive enhancement: every element
@@ -15,9 +21,13 @@ import { useEffect } from "react";
  * Plus: batched section reveals and a one-shot draw-in on the before/after checks.
  */
 export function LandingMotion() {
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     let ctx: { revert: () => void } | null = null;
+    let lenis: InstanceType<typeof import("lenis")["default"]> | null = null;
+    let lenisRaf: ((t: number) => void) | null = null;
+    let gsapMod: typeof import("gsap")["gsap"] | null = null;
+    const cleanups: Array<() => void> = [];
 
     // Sticky header hairline appears once you leave the very top (runs regardless of reduced-motion).
     const head = document.querySelector<HTMLElement>("[data-head]");
@@ -29,6 +39,19 @@ export function LandingMotion() {
       const { gsap } = await import("gsap");
       const { ScrollTrigger } = await import("gsap/ScrollTrigger");
       gsap.registerPlugin(ScrollTrigger);
+      gsapMod = gsap;
+
+      // Lenis smooth scroll — the whole landing glides, and ScrollTrigger (incl. the
+      // pinned story scene) is driven off Lenis's rAF so the two never fight.
+      if (!reduce) {
+        const { default: Lenis } = await import("lenis");
+        const l = new Lenis({ lerp: 0.12, smoothWheel: true });
+        lenis = l;
+        l.on("scroll", ScrollTrigger.update);
+        lenisRaf = (t: number) => l.raf(t * 1000);
+        gsap.ticker.add(lenisRaf);
+        gsap.ticker.lagSmoothing(0);
+      }
 
       // Reduced motion: make sure nothing is left hidden, then bail on all motion.
       if (reduce) {
@@ -116,11 +139,59 @@ export function LandingMotion() {
             onUpdate: () => { el.textContent = Math.round(obj.v) + suffix; },
           });
         });
+
+        // 6. Hero pointer parallax — the lady drifts with the cursor and the brand pixels drift
+        //    further (depth), while the promise-card watermark eases the opposite way. Fine-pointer
+        //    devices only; motion already gated by the reduce guard above.
+        const hero = document.querySelector<HTMLElement>(".bento-hero");
+        if (hero && window.matchMedia("(pointer:fine)").matches) {
+          const img = hero.querySelector<HTMLElement>(".bh-photo img");
+          const wm = hero.querySelector<HTMLElement>(".bh-watermark");
+          const pxEls = gsap.utils.toArray<HTMLElement>(".bh-photo .px");
+          const q = (el: HTMLElement | null, p: string, d: number) =>
+            el ? gsap.quickTo(el, p, { duration: d, ease: "power3" }) : null;
+          const ix = q(img, "x", 0.7), iy = q(img, "y", 0.7);
+          const wx = q(wm, "x", 1.0), wy = q(wm, "y", 1.0);
+          const pxq = pxEls.map((el, i) => ({
+            x: gsap.quickTo(el, "x", { duration: 0.9, ease: "power3" }),
+            y: gsap.quickTo(el, "y", { duration: 0.9, ease: "power3" }),
+            d: (i % 2 ? -1 : 1) * (12 + i * 5),
+          }));
+          const onMove = (e: PointerEvent) => {
+            const r = hero.getBoundingClientRect();
+            const nx = (e.clientX - r.left) / r.width - 0.5;
+            const ny = (e.clientY - r.top) / r.height - 0.5;
+            ix?.(nx * -16); iy?.(ny * -11);
+            wx?.(nx * 10); wy?.(ny * 8);
+            pxq.forEach((p) => { p.x(nx * p.d); p.y(ny * p.d); });
+          };
+          const onLeave = () => {
+            ix?.(0); iy?.(0); wx?.(0); wy?.(0);
+            pxq.forEach((p) => { p.x(0); p.y(0); });
+          };
+          hero.addEventListener("pointermove", onMove);
+          hero.addEventListener("pointerleave", onLeave);
+          cleanups.push(() => {
+            hero.removeEventListener("pointermove", onMove);
+            hero.removeEventListener("pointerleave", onLeave);
+          });
+        }
       });
+
+      // The pinned sections (StoryScroll, LoopScroll) mount asynchronously and the large hero photo
+      // loads AFTER the first pin calculation — both shift layout and can leave a pin's start stale.
+      // Recompute once everything has settled (window load + a short tail) so every pin engages.
+      const refreshAll = () => ScrollTrigger.refresh();
+      window.addEventListener("load", refreshAll);
+      const rt = window.setTimeout(refreshAll, 700);
+      cleanups.push(() => { window.removeEventListener("load", refreshAll); window.clearTimeout(rt); });
     })();
 
     return () => {
       window.removeEventListener("scroll", onScroll);
+      cleanups.forEach((fn) => fn());
+      if (lenisRaf && gsapMod) gsapMod.ticker.remove(lenisRaf);
+      lenis?.destroy();
       ctx?.revert();
     };
   }, []);

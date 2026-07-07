@@ -81,7 +81,7 @@ export default function GetStarted() {
   return (
     <div className="ob-wrap">
       <aside className="ob-aside">
-        <Link href="/" className="logo"><span className="mark">P</span><span>PaidUp</span></Link>
+        <Link href="/" className="logo"><img src="/logo.svg" alt="" width={30} height={30} style={{ borderRadius: 7 }} /><span>PaidUp</span></Link>
         <div className="ob-steps">
           {steps.map((s) => (
             <div key={s.n} className={`s ${stepNum === s.n ? "on" : ""} ${stepNum > s.n ? "done" : ""}`}>
@@ -105,7 +105,7 @@ export default function GetStarted() {
             <input value="NGN — Nigerian Naira" disabled />
             <div className="ob-actions">
               <Link href="/" className="ghost">← Back</Link>
-              <button className="btn-xl" onClick={() => setStep(2)} disabled={!business.trim()} style={{ opacity: business.trim() ? 1 : 0.5 }}>Continue →</button>
+              <button className="btn-xl" onClick={() => setStep(2)} disabled={!business.trim()}>Continue →</button>
             </div>
           </div>
         )}
@@ -121,7 +121,7 @@ export default function GetStarted() {
             <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="450000" />
             <div className="ob-actions">
               <button className="ghost" onClick={() => setStep(1)}>← Back</button>
-              <button className="btn-xl" onClick={() => setStep("processing")} disabled={!customer.trim() || !(parseFloat(amount) > 0)} style={{ opacity: customer.trim() && parseFloat(amount) > 0 ? 1 : 0.5 }}>
+              <button className="btn-xl" onClick={() => setStep("processing")} disabled={!customer.trim() || !(parseFloat(amount) > 0)}>
                 Arm reconciliation →
               </button>
             </div>
@@ -134,7 +134,7 @@ export default function GetStarted() {
             <h2>{error ? "Setup hit a snag." : "Arming your reconciliation engine…"}</h2>
             {error ? (
               <>
-                <p className="sub" style={{ color: "var(--reversed-ink, #b4442f)", marginBottom: 22 }}>{error}</p>
+                <p className="sub" style={{ color: "var(--attn)", marginBottom: 22 }}>{error}</p>
                 <div className="ob-actions">
                   <button className="ghost" onClick={() => { setError(null); setStep(2); }}>← Back</button>
                   <button className="btn-xl" onClick={() => { setError(null); setRetry((r) => r + 1); }}>Retry →</button>

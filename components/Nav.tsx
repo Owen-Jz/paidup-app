@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Radio, FileText, Download, ShieldCheck } from "lucide-react";
+import { Radio, FileText, Banknote, Download, ShieldCheck, Settings } from "lucide-react";
 
 export function Nav() {
   const path = usePathname();
@@ -11,17 +11,16 @@ export function Nav() {
     </Link>
   );
   return (
-    <nav className="side-nav">
+    <nav className="side-nav" data-tour="nav">
       <span className="side-label">Workspace</span>
       {item("/app", "Live feed", Radio)}
       {item("/app/invoices", "Invoices", FileText)}
-      <span className="side-label">Data</span>
-      <a className="side-link data" href="/api/export" title="Download the full reconciliation ledger as CSV">
-        <Download size={18} /><span>Export ledger</span>
-      </a>
-      <a className="side-link data" href="/api/audit?format=csv" title="Download the tamper-evident, hash-chained audit trail">
-        <ShieldCheck size={18} /><span>Audit trail</span>
-      </a>
+      {item("/app/withdraw", "Withdraw", Banknote)}
+      <span className="side-label">Reports</span>
+      {item("/app/reports/ledger", "Ledger (PDF)", Download)}
+      {item("/app/reports/audit", "Audit trail (PDF)", ShieldCheck)}
+      <span className="side-label">Account</span>
+      {item("/app/settings", "Settings", Settings)}
     </nav>
   );
 }

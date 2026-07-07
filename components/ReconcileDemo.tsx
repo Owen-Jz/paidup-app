@@ -1,133 +1,103 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 /**
- * Interactive hero widget — lets a visitor *experience* the core promise:
- * tap an incoming transfer, watch a coin travel into the invoice whose virtual
- * account it was sent to, and see that invoice flip itself to Paid / Partial.
- * "The account number IS the reference" — demonstrated, not asserted.
+ * Hero widget — the reconciliation engine, made legible at a glance. Three invoices, the three
+ * outcomes the engine produces from an incoming transfer:
+ *   • Paid        — exact settlement, full bar.
+ *   • Partial     — some received, balance still due (₦28,000 of ₦70,000).
+ *   • Refundable  — customer overpaid; the surplus is refundable in one tap.
  *
- * Progressive: fully readable without JS (the invoices + transfers render as
- * static markup). Motion + matching layer on after mount, and honor reduced-motion.
+ * Progressive: the reconciled states + figures render server-side (readable with zero JS). On the
+ * client the bars sweep in, "Replay" re-runs the sweep, and the Refundable row's one-tap refund
+ * settles the surplus live. Reduced-motion collapses every animation to its final frame.
  */
 
-type Inv = { id: string; who: string; acct: string; amount: number };
-type Tf = { id: string; amount: number; to: string; from: string };
+type Inv = { id: string; who: string; acct: string; amount: number; paid: number };
 
-const INVOICES: Inv[] = [
-  { id: "INV-1042", who: "Dangote Cement", acct: "3049420327", amount: 450000 },
-  { id: "INV-1043", who: "Jumia Nigeria", acct: "9882319033", amount: 70000 },
-  { id: "INV-1046", who: "MTN Nigeria", acct: "5521190044", amount: 1300000 },
+const FINAL: Inv[] = [
+  { id: "INV-1042", who: "Dangote Cement", acct: "3049420327", amount: 450000, paid: 450000 },   // Paid
+  { id: "INV-1043", who: "Jumia Nigeria", acct: "9882319033", amount: 70000, paid: 28000 },       // Partial
+  { id: "INV-1046", who: "MTN Nigeria", acct: "5521190044", amount: 1300000, paid: 1400000 },      // Refundable
 ];
 
-const TRANSFERS: Tf[] = [
-  { id: "t1", amount: 450000, to: "3049420327", from: "GTBank" },
-  { id: "t2", amount: 28000, to: "9882319033", from: "Opay" },
-  { id: "t3", amount: 1300000, to: "5521190044", from: "Zenith" },
-];
+// Deterministic grouping (avoids SSR/client ICU differences → no hydration mismatch).
+const ngn = (n: number) => "₦" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-const ngn = (n: number) => "₦" + n.toLocaleString("en-NG");
+function statusOf(i: Inv): { label: string; cls: string } {
+  if (i.paid === 0) return { label: "Awaiting", cls: "c-awaiting" };
+  if (i.paid > i.amount) return { label: "Refundable", cls: "c-overpaid" };
+  if (i.paid >= i.amount) return { label: "Paid", cls: "c-paid" };
+  return { label: "Partial", cls: "c-partial" };
+}
 
 export function ReconcileDemo() {
-  // invoiceId -> amount paid so far
-  const [paid, setPaid] = useState<Record<string, number>>({});
-  const [usedTf, setUsedTf] = useState<Record<string, boolean>>({});
-  const [busy, setBusy] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const reduce = useRef(false);
-  const gsapRef = useRef<typeof import("gsap")["gsap"] | null>(null);
+  const [inv, setInv] = useState<Inv[]>(FINAL);
+  const [replayKey, setReplayKey] = useState(0);
+  const [refunded, setRefunded] = useState(false);
 
-  useEffect(() => {
-    reduce.current =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    let cancelled = false;
-    import("gsap").then((m) => {
-      if (cancelled) return;
-      gsapRef.current = m.gsap;
-      // Gentle one-time hint that the first transfer is tappable.
-      if (!reduce.current) {
-        const first = rootRef.current?.querySelector<HTMLElement>(".demo-tf");
-        if (first) m.gsap.fromTo(first, { y: 0 }, { y: -4, repeat: 3, yoyo: true, duration: 0.5, delay: 1.1, ease: "sine.inOut" });
-      }
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const statusFor = (inv: Inv): { label: string; cls: string } => {
-    const p = paid[inv.id] ?? 0;
-    if (p === 0) return { label: "Awaiting", cls: "c-awaiting" };
-    if (p >= inv.amount) return { label: p > inv.amount ? "Overpaid" : "Paid", cls: p > inv.amount ? "c-overpaid" : "c-paid" };
-    return { label: "Partial", cls: "c-partial" };
+  const replay = () => {
+    setInv(FINAL);
+    setRefunded(false);
+    setReplayKey((k) => k + 1);
   };
-
-  const send = (tf: Tf) => {
-    if (usedTf[tf.id] || busy) return;
-    const inv = INVOICES.find((i) => i.acct === tf.to);
-    if (!inv) return;
-    const root = rootRef.current;
-    const gsap = gsapRef.current;
-
-    const settle = () => {
-      setPaid((prev) => ({ ...prev, [inv.id]: (prev[inv.id] ?? 0) + tf.amount }));
-      setUsedTf((prev) => ({ ...prev, [tf.id]: true }));
-      setBusy(false);
-    };
-
-    if (reduce.current || !root || !gsap) { settle(); return; }
-
-    const tfEl = root.querySelector<HTMLElement>(`[data-tf="${tf.id}"]`);
-    const invEl = root.querySelector<HTMLElement>(`[data-inv="${inv.id}"]`);
-    if (!tfEl || !invEl) { settle(); return; }
-
-    const base = root.getBoundingClientRect();
-    const a = tfEl.getBoundingClientRect();
-    const b = invEl.getBoundingClientRect();
-
-    // A coin token flies from the tapped transfer up into its matching invoice row.
-    const coin = document.createElement("div");
-    coin.className = "demo-coin";
-    coin.textContent = ngn(tf.amount);
-    root.appendChild(coin);
-    setBusy(true);
-
-    gsap.set(coin, { x: a.left - base.left + a.width / 2, y: a.top - base.top + a.height / 2, xPercent: -50, yPercent: -50, opacity: 0, scale: 0.7 });
-    gsap
-      .timeline({ onComplete: () => { coin.remove(); settle(); } })
-      .to(coin, { opacity: 1, scale: 1, duration: 0.18, ease: "power2.out" })
-      .to(coin, { x: b.left - base.left + b.width - 26, y: b.top - base.top + b.height / 2, duration: 0.6, ease: "power3.inOut" })
-      .to(coin, { scale: 0.4, opacity: 0, duration: 0.22, ease: "power2.in" }, "-=0.04")
-      .add(() => {
-        invEl.classList.remove("settle");
-        // reflow so the animation restarts even if matched twice
-        void invEl.offsetWidth;
-        invEl.classList.add("settle");
-      }, "-=0.18");
+  const refund = () => {
+    setInv((prev) => prev.map((i) => (i.paid > i.amount ? { ...i, paid: i.amount } : i)));
+    setRefunded(true);
   };
-
-  const allDone = INVOICES.every((i) => (paid[i.id] ?? 0) >= i.amount);
 
   return (
-    <div className="demo" ref={rootRef} aria-label="Interactive reconciliation demo">
+    <div className="demo">
       <div className="demo-head">
         <span className="demo-title serif">Your invoices</span>
-        <span className="demo-live"><i />{allDone ? "all settled" : "live"}</span>
+        <span className="demo-head-r">
+          <span className="demo-live"><i />live</span>
+          <button className="demo-replay" type="button" onClick={replay}>↺ Replay</button>
+        </span>
       </div>
 
       <div className="demo-invoices">
-        {INVOICES.map((inv) => {
-          const st = statusFor(inv);
-          const p = paid[inv.id] ?? 0;
+        {inv.map((i) => {
+          const st = statusOf(i);
+          const over = i.paid > i.amount;
+          const due = i.amount - i.paid;
+          // When overpaid, the track represents the full amount RECEIVED so the surplus shows as an
+          // amber tip beyond the green "settled" segment; otherwise the green fill is paid/amount.
+          const greenPct = over ? (i.amount / i.paid) * 100 : Math.min((i.paid / i.amount) * 100, 100);
+          const amberPct = over ? ((i.paid - i.amount) / i.paid) * 100 : 0;
           return (
-            <div className="demo-inv" data-inv={inv.id} key={inv.id}>
-              <div className="demo-inv-l">
-                <b className="mono">{inv.id}</b>
-                <small>{inv.who} · <span className="mono">{inv.acct}</span></small>
+            <div className="demo-inv" data-inv={i.id} key={i.id}>
+              <div className="demo-inv-top">
+                <div className="demo-inv-l">
+                  <b className="mono">{i.id}</b>
+                  <small>{i.who} · <span className="mono">{i.acct}</span></small>
+                </div>
+                <div className="demo-inv-r">
+                  <span className="naira demo-amt">{ngn(i.amount)}</span>
+                  <span className={`chip demo-chip ${st.cls}`} key={`${replayKey}-${st.cls}`}><span className="dot" />{st.label}</span>
+                </div>
               </div>
-              <div className="demo-inv-r">
-                <span className="naira demo-amt">{ngn(p > 0 ? Math.min(p, inv.amount) : inv.amount)}</span>
-                <span className={`chip ${st.cls} demo-chip`}><span className="dot" />{st.label}</span>
+
+              <div className="demo-bar">
+                <i className="demo-seg green" key={`g-${replayKey}-${i.id}`} style={{ width: `${greenPct}%` }} />
+                {over && <i className="demo-seg amber" key={`a-${replayKey}-${i.id}`} style={{ width: `${amberPct}%` }} />}
+              </div>
+
+              <div className="demo-inv-foot mono">
+                <span>
+                  {over ? (
+                    <>Received {ngn(i.paid)} · <b className="over">{ngn(i.paid - i.amount)} over</b></>
+                  ) : i.paid >= i.amount ? (
+                    <>Fully paid</>
+                  ) : (
+                    <>{ngn(i.paid)} of {ngn(i.amount)} · <b className="due">{ngn(due)} due</b></>
+                  )}
+                </span>
+                {over && !refunded && (
+                  <button className="demo-refund" type="button" onClick={refund}>↩ Refund {ngn(i.paid - i.amount)}</button>
+                )}
+                {over && refunded && <span className="demo-refunded">✓ Surplus refunded</span>}
               </div>
             </div>
           );
@@ -135,22 +105,7 @@ export function ReconcileDemo() {
       </div>
 
       <div className="demo-foot">
-        <span className="demo-foot-lab">{allDone ? "Every transfer found its invoice — nothing typed by hand." : "Incoming transfers — tap one to send it"}</span>
-        <div className="demo-transfers">
-          {TRANSFERS.map((tf) => (
-            <button
-              type="button"
-              key={tf.id}
-              data-tf={tf.id}
-              className={`demo-tf${usedTf[tf.id] ? " done" : ""}`}
-              onClick={() => send(tf)}
-              disabled={usedTf[tf.id] || busy}
-            >
-              <span className="naira">{ngn(tf.amount)}</span>
-              <span className="demo-tf-to mono">→ {tf.to}</span>
-            </button>
-          ))}
-        </div>
+        <span className="demo-foot-lab">Paid · Partial · Refundable — every transfer matched by its virtual-account reference. Nothing typed by hand.</span>
       </div>
     </div>
   );

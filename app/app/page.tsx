@@ -3,7 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useDashboard, Chip, SyncStatus, CountUp } from "@/components/dashboard";
+import { GuidedTour, type TourStep } from "@/components/GuidedTour";
 import { NGN, eventIcon, timeAgo, shortName } from "@/lib/format";
+
+// Guided tour steps — anchored to real elements on this page + the sidebar nav (data-tour="…").
+const TOUR: TourStep[] = [
+  { title: "Welcome to PaidUp 👋", body: "A 30-second tour of how your money reconciles itself here. You can skip anytime." },
+  { selector: '[data-tour="kpis"]', title: "Your money at a glance", body: "Collected, invoiced, still outstanding, and what needs a look — all updated live as payments land." },
+  { selector: '[data-tour="feed"]', title: "It reconciles itself", body: "Every bank transfer appears here and is matched to its invoice automatically — by that invoice's own virtual account. Nothing is typed by hand." },
+  { selector: '[data-tour="attention"]', title: "Nothing slips through", body: "Overpayments, unmatched money and anomalies get flagged for you — with AI suggestions you can accept or override." },
+  { selector: '[data-tour="nav"]', title: "Everything in one place", body: "Invoices (each gets its own account, with refunds & receipts), Withdraw to your bank, printable Reports & a tamper-evident audit trail, and Settings." },
+  { title: "That's the loop 🎉", body: "Open Invoices to create one and watch a payment reconcile end-to-end. Enjoy exploring!" },
+];
 
 export default function LivePage() {
   const { invoices, events, quarantine, kpis, flashId, loading, error, sync } = useDashboard();
@@ -25,7 +36,7 @@ export default function LivePage() {
   const evBg: Record<string, string> = {
     paid: "var(--paid-bg)", partial: "var(--partial-bg)", overpaid: "var(--over-bg)",
     quarantine: "var(--attn-bg)", duplicate: "var(--await-bg)", refunded: "var(--paid-bg)",
-    reversed: "var(--attn-bg)",
+    reversed: "var(--attn-bg)", withdrawal: "var(--await-bg)",
   };
   const outstanding = invoices.filter((i) => i.paid < i.amount).sort((a, b) => (b.amount - b.paid) - (a.amount - a.paid)).slice(0, 4);
 
@@ -52,24 +63,28 @@ export default function LivePage() {
           <h1 className="h1">Live collections</h1>
           <p className="sub">Money lands → matched by virtual-account reference → reconciled automatically. Nothing here is typed by hand.</p>
         </div>
-        <span className="page-live"><i />Reconciling live</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span className="page-live"><i />Reconciling live</span>
+          <button className="ghost sm" onClick={() => window.dispatchEvent(new Event("paidup:tour"))} title="Replay the guided tour">❔ Take a tour</button>
+          <Link className="btn sm" href="/app/invoices?new=1" style={{ textDecoration: "none" }}>+ New invoice</Link>
+        </div>
       </div>
 
       {error && <div className="banner err" role="alert">⚠ Lost connection to the ledger — retrying…</div>}
       <div className="sr-only" role="status" aria-live="polite">{liveMsg}</div>
 
-      <div className="kpis">
+      <div className="kpis" data-tour="kpis">
         <div className="kpi accent"><div className="lab">Collected</div><div className="val naira">{NGN(kpis.collected)}</div><div className="delta">{kpis.rate}% of invoiced</div></div>
         <div className="kpi"><div className="lab">Invoiced</div><div className="val naira">{NGN(kpis.invoiced)}</div><div className="delta">{invoices.length} invoices</div></div>
         <div className="kpi"><div className="lab">Outstanding</div><div className="val naira" style={{ color: "var(--partial)" }}>{NGN(kpis.outstanding)}</div><div className="delta">{invoices.filter((i) => i.paid < i.amount).length} open</div></div>
-        <Link href="/app/invoices?filter=attn" className="kpi" style={{ textDecoration: "none", cursor: "pointer" }} aria-label={`Needs attention: ${quarantine.length} unmatched — review`}><div className="lab">Needs attention</div><div className="val" style={{ color: "var(--attn)" }}>{kpis.attention}</div><div className="delta">{quarantine.length} unmatched · review →</div></Link>
+        <Link href="/app/invoices?filter=attn" className="kpi" data-tour="attention" style={{ textDecoration: "none", cursor: "pointer" }} aria-label={`Needs attention: ${quarantine.length} unmatched — review`}><div className="lab">Needs attention</div><div className="val" style={{ color: "var(--attn)" }}>{kpis.attention}</div><div className="delta">{quarantine.length} unmatched · review →</div></Link>
       </div>
 
       <div className="grid2">
-        <div className="feed">
+        <div className="feed" data-tour="feed">
           <div className="fh">
             <span className="live"><i />LIVE</span>
-            <span style={{ color: "var(--faint)", fontSize: 12, fontFamily: "var(--mono)" }}>payment_success webhooks</span>
+            <span style={{ color: "var(--faint)", fontSize: 12, fontFamily: "var(--mono)" }}>money in &amp; out</span>
             <span style={{ marginLeft: "auto" }}><SyncStatus sync={sync} /></span>
           </div>
           {events.map((e) => {
@@ -79,12 +94,12 @@ export default function LivePage() {
             <div className={`event ${isFlash ? "flash" : ""} ${isWin ? "win" : ""}`} key={e.id}>
               <div className="ic" style={{ background: evBg[e.outcome] }}>{eventIcon(e.outcome)}</div>
               <div>
-                <div className="who-line">{e.customer} <span style={{ color: "var(--faint)", fontWeight: 500 }}>→ {e.invoiceId ?? "no match"}</span></div>
+                <div className="who-line">{e.customer}{e.outcome !== "withdrawal" && <span style={{ color: "var(--faint)", fontWeight: 500 }}> → {e.invoiceId ?? "no match"}</span>}</div>
                 <div className="meta">{e.bankName} · <span className="mono">{e.narration}</span>
                   {e.outcome === "quarantine" && <Link href="/app/invoices?filter=attn" style={{ color: "var(--attn)", fontWeight: 600, textDecoration: "none", marginLeft: 6 }}>· resolve →</Link>}
                 </div>
               </div>
-              <div className="amt">{NGN(e.amount)} <Chip status={e.outcome} /><small>{timeAgo(e.time)}</small></div>
+              <div className="amt">{e.outcome === "withdrawal" ? `− ${NGN(e.amount)}` : NGN(e.amount)} <Chip status={e.outcome} /><small>{timeAgo(e.time)}</small></div>
             </div>
           );})}
           {loading && events.length === 0 && Array.from({ length: 4 }).map((_, n) => (
@@ -98,7 +113,8 @@ export default function LivePage() {
             <div className="empty-state">
               <span className="ico">⚡</span>
               <b>Waiting for the first payment</b>
-              <span>When a customer transfers into an invoice&apos;s virtual account, it lands here and reconciles itself. Use the Simulate panel to see it live.</span>
+              <span>Create an invoice and share its account number or pay link — the moment your customer transfers, the payment lands here and reconciles itself.</span>
+              <Link className="btn sm" href="/app/invoices?new=1" style={{ marginTop: 10, textDecoration: "none" }}>+ Create your first invoice</Link>
             </div>
           )}
         </div>
@@ -149,13 +165,18 @@ export default function LivePage() {
           <div className="railcard">
             <h4>Top outstanding</h4>
             {outstanding.map((i) => (
-              <div className="outrow" key={i.id}><span>{shortName(i.customer)}</span><b className="naira">{NGN(i.amount - i.paid)}</b></div>
+              <Link className="outrow" key={i.id} href="/app/invoices?filter=open"
+                style={{ textDecoration: "none", color: "inherit" }}
+                aria-label={`Open invoices — ${shortName(i.customer)} owes ${NGN(i.amount - i.paid)}`}>
+                <span>{shortName(i.customer)}</span><b className="naira">{NGN(i.amount - i.paid)}</b>
+              </Link>
             ))}
             {outstanding.length === 0 && <div style={{ color: "var(--faint)", fontSize: 13 }}>All settled 🎉</div>}
           </div>
         </div>
       </div>
 
+      <GuidedTour steps={TOUR} />
     </main>
   );
 }

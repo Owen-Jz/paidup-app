@@ -1,0 +1,15 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="a-bg" x1="18" y1="12" x2="162" y2="168" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16794F"/>
+      <stop offset="1" stop-color="#0E5638"/>
+    </linearGradient>
+  </defs>
+  <!-- full-bleed square; iOS applies its own corner mask -->
+  <rect width="180" height="180" fill="url(#a-bg)"/>
+  <!-- Reconciled check-arrow (64-space art scaled to fill) -->
+  <g transform="translate(6 6) scale(2.63)">
+    <path d="M14 34 L26 46 L50 17" fill="none" stroke="#7FE0AE" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M50 17 L39 18.5 M50 17 L48.5 28" fill="none" stroke="#E7B24A" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
