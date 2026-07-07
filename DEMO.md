@@ -5,11 +5,16 @@ under/overpayment handling, customer-level reporting clarity** — plus the AI m
 show the engine, end on the moat.
 
 ## Before you record (60 seconds of setup)
+
+**Hosted (recommended):** the demo runs live at **https://paidup.site** — sign in with `demo@paidup.app` / `LedgerDemo2026`, no local setup needed.
+
+**Local (alternative):**
 ```bash
 cd paidup
-rm -f .data/ledger.json     # reset to the clean seed ledger
 npm run dev                 # http://localhost:3100
 ```
+Reset for a fresh demo: drop the dev database (`mongosh paidup --eval "db.dropDatabase()"`) OR use the seeded demo workspace as-is. (The file-backed `.data/ledger.json` no longer exists.)
+
 - **Sign in first** — the app is a real multi-tenant SaaS now. The populated demo workspace:
   **`demo@paidup.app` / `LedgerDemo2026`** (override the password with `DEMO_PASSWORD`). Or sign up
   fresh at `/signup` to show an empty, isolated workspace. `.env.local` needs `SESSION_SECRET` set.
@@ -80,12 +85,23 @@ On the live page, hit **Generate brief** on the **✨ AI reconciliation brief** 
 > "A plain-English read on the whole ledger — collected, outstanding, what needs me — over the *computed*
 > figures, so it can never invent money."
 
-Tap the **✨ AI LIVE** pill / mention **fail-closed webhook HMAC** and the **anomaly flags**.
+Tap the **✨ AI LIVE** pill / mention **fail-closed webhook HMAC** and the **anomaly flags**. Point at the
+sync note under the header — **"✓ last synced … · ₦XXX settled at Nomba"**:
+> "That figure is live from Nomba's balance API — the ledger ties out against real settled cash, to the naira."
 
-**2:35 — Close**  *(~15s)*
+**2:20 — Withdraw closing beat (`/app/withdraw`)**  *(~15s)*
+> "Collected → reconciled → **paid out to my own bank** — a real ₦ transfer on camera. The full money-in-to-money-out loop."
+
+Show the withdraw page: enter bank details → the app confirms the recipient name from Nomba before sending — never wires to a wrong account.
+
+**2:35 — Receipt + verification beat**  *(~10s)*
+> "The payer opens `/pay/<token>/receipt` (save-as-PDF) and scans the verification QR. `/pay/<token>/verify` shows the payment is real — the answer to fake bank alerts."
+
+**2:45 — Close**  *(~15s)*
 > "PaidUp turns Nomba's raw virtual-account primitive into a managed reconciliation ledger — exact,
 > partial, overpaid, reversed and unmatched all handled, with AI that sharpens the work but can never
-> break the money path. 107 unit tests, HMAC verified against Nomba's own vector, fails closed in production."
+> break the money path. 136 unit tests, HMAC verified against Nomba's own vector, fails closed in production —
+> and it's all proven with real money: real bank transfers, a real refund, on the live API."
 
 ## One-line pitch (for the form)
 > Per-invoice Nomba virtual accounts + a reconciliation engine that auto-matches every transfer
@@ -95,5 +111,5 @@ Tap the **✨ AI LIVE** pill / mention **fail-closed webhook HMAC** and the **an
 ## If something misbehaves on the day
 - Feed not updating → the dashboard polls `/api/events` every 2s; check the dev server is up on :3100.
 - AI button shows "AI not configured" → `MINIMAX_API_KEY` isn't set; the deterministic fallback still works.
-- Want a clean slate mid-demo → `rm .data/ledger.json` and reload (re-seeds).
-- Reset everything verified: `npm test` (107) · `npm run build` · `node ../smoke-test/smoke-test.mjs`.
+- Want a clean slate mid-demo → Reset for a fresh demo: drop the dev database (`mongosh paidup --eval "db.dropDatabase()"`) OR use the seeded demo workspace as-is. (The file-backed `.data/ledger.json` no longer exists.)
+- Reset everything verified: `npm test` (136) · `npm run build` · `node ../smoke-test/smoke-test.mjs`.

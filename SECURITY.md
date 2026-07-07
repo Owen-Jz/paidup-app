@@ -26,8 +26,9 @@ integrity** — both are treated as money-correctness problems, not afterthought
 - **Don't trust webhooks alone** — "Sync from Nomba" requeries the credits Nomba actually recorded
   (`/v1/transactions/virtual`) and re-runs them through the *same* dedupe+reconcile path, repairing the
   ledger if a webhook was ever missed. Safe to run anytime (idempotent).
-- **Durable state** — the ledger + processed-tx set are file-backed (`.data/ledger.json`), so a restart
-  can't replay-double-credit. (Serverless needs Postgres — see README.)
+- **Durable state** — Ledger is MongoDB. Money-path mutations are transactional (invoice + feed event + dedupe claim + audit entry commit all-or-nothing). Webhook replay is a duplicate-key error on a UNIQUE seenTx index — a race can never double-credit.
+- **Tamper-evident audit trail** — every money event chains a SHA-256 hash over the prior entry (`lib/audit.ts`: `hashEntry`/`verifyChain`/`GENESIS`); `verifyAudit()` re-checks the whole chain.
+- **Withdraw money-safety** — write-ahead reserve before the transfer, balance-capped, bank-confirmed recipient name, idempotent `wd_` refs; account deletion refuses while a payout is `pending` (payout_in_flight 409).
 - **Anomaly flags** — large overpayments, possible duplicate transfers, and repeated unmatched senders are
   surfaced for a human before money is treated as settled.
 
@@ -71,14 +72,14 @@ integrity** — both are treated as money-correctness problems, not afterthought
   out of code.** `.env.local.example` documents every variable with no secrets.
 
 ## Known limits / threat model
-- File store is single-instance; move to Postgres before a serverless deploy.
+- Store is MongoDB (transactional, multi-instance-safe); no longer single-instance-only.
 - Auth v1 defers email verification, password reset, and team members (one owner-user per tenant);
   unmatched money with no attributable tenant lands in the operator (demo) workspace for resolution.
 - Money is held as guarded Naira floats (round-2 + kobo tolerance, tested); integer-kobo is the
   post-hackathon hardening step.
 
 ## Verification
-`npm test` → 123 unit tests (reconcile incl. reversal, HMAC/signature vector, session-token sign/verify/
+`npm test` → 136 unit tests (reconcile incl. reversal, HMAC/signature vector, session-token sign/verify/
 tamper/expiry, scrypt password hashing, tenant isolation incl. cross-tenant refusal, resolver + AI-fallback,
 export, anomaly + AI-explain, summary + AI-fallback, plus ai, validate, store, ratelimit, security-headers,
 audit, receipt).

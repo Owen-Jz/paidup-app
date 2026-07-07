@@ -1,5 +1,22 @@
 # PaidUp — Rubric Gap Audit & Backlog
 
+> **2026-07-04 — UX sweep: 18 polish/friction fixes across all 9 user-facing pages** (spec:
+> `docs/superpowers/specs/2026-07-04-ux-sweep-design.md`). Highlights: silent refund/assign/bounce
+> failures now show inline errors · session expiry redirects to login instead of a fake "lost
+> connection" banner · New-invoice modal submits on Enter + success card gains "Copy pay link" ·
+> `?new=1` deep link + feed CTA · demo-workspace one-click login for reviewers · pay page mobile
+> pass (same-device QR hint, sr-only account fallback, ≥44px tap targets, small-screen stacking) ·
+> focus-visible outlines + password show/hide + client-side validation · stale Simulate-panel and
+> VA-delete copy corrected. 125/125 tests · deployed to paidup.site · working-tree only (commit hold).
+
+> **2026-07-04 — VA lifecycle completed + balance tie-out (production-verified).** Two endpoints the
+> hackathon's own "what to build" post names for the VA track were unused because sandbox 403'd them;
+> both now **work on production** and are wired in: deleting a clean invoice **expires its real Nomba VA**
+> (`DELETE /v1/accounts/virtual/{ref}`, best-effort, `vaLive` flag — a freed NUBAN dies with its reference),
+> and the 5-min sync now shows the **live sub-account balance** (`GET /v1/accounts/{subAccountId}/balance`,
+> operator tenant only — it's a global figure) as a ground-truth cash tie-out (₦300 = real-money tests to
+> the naira). Verified live on paidup.site: INV-1109 create(real VA)→delete→`vaExpired:true`. 125/125 tests.
+
 > **2026-07-03 — #16 (no auth) CLOSED for real.** The opt-in shared-password gate was replaced with
 > **multi-tenant authentication**: self-serve signup (`/signup`), scrypt-hashed passwords with per-user
 > salts, stateless HMAC-signed session cookies (8h, `SESSION_SECRET`, tokenVersion revocation), a
@@ -179,7 +196,7 @@ replay, audit CSV export, anomaly flags, reversal handling).
 - **Realtime SSE** — 2s polling is fine for the demo; SSE adds infra risk for no judging gain.
 
 ### Genuinely open (owner actions / future, not loop code)
-- Swap the file store → Postgres before a **serverless** deploy (fine as-is on a single instance/Render).
+- ~~Swap the file store → Postgres before a **serverless** deploy~~ **RESOLVED 2026-07-06 — migrated to a transactional MongoDB store (`lib/db.ts`, `lib/store.ts`); the file-backed limitation no longer exists.**
 - Set real `NOMBA_WEBHOOK_SECRET` + tunnel `/api/webhook` + submit Nomba's form; set `APP_PASSWORD` + a real
   `MINIMAX_API_KEY` for a hosted deploy.
 - Nice-to-have: `aria-live` announcements when async AI results arrive (screen-reader polish).
@@ -288,21 +305,26 @@ Verified by `npm test` (15 pass), `npm run build` (green), and live curl/screens
 
 ## 🏦 Virtual-account lifecycle policy (decided 2026-07-01)
 
-**Decision: PaidUp uses STATIC (non-expiring) virtual accounts, scoped one-per-customer, not one-per-invoice.**
+**Decision: PaidUp uses STATIC (non-expiring) virtual accounts, minted one-per-invoice.**
+(An earlier draft of this section said "one per customer, not per invoice" — that was never built; the
+shipped code, the landing page, and the pay page are all per-invoice.)
 Rationale traced from the Nomba reference (`NOMBA-API-REFERENCE.md` §Virtual Accounts):
 
 - **Static vs dynamic** — a VA is *static* (permanent NUBAN) when `expiryDate` is omitted, *dynamic*
-  (time-boxed) when it's set. The invoice route (`app/api/invoices/route.ts:42`) calls
-  `createVirtualAccount` **without** `expiryDate` → all invoice VAs are static today. This is intentional
-  and stays.
+  (time-boxed) when it's set. The invoice route (`app/api/invoices/route.ts:49`) calls
+  `createVirtualAccount` with `accountRef: <invoice ref>` and **without** `expiryDate` → every invoice
+  gets its own static VA. This is intentional and stays.
 - **Why static** — (1) a customer who pays a month late still lands the money (no expired-account bounce);
-  (2) it removes the reused-saved-beneficiary failure mode (the number a customer saved never dies);
+  (2) a per-invoice number is never meant to be reused, and being static means even a saved-and-reused
+  number still lands into the right invoice;
   (3) "expiry" lives in *our* ledger as an invoice status (overdue / written-off), which we control —
   not on the bank rail, whose expired-inbound behavior is undocumented.
-- **Scope one static VA per repeat customer, not per invoice** — bounds the live-account count to the
-  *active customer base* (not transaction volume). `accountRef` is the reconciliation key tying the VA to
-  the customer; invoices are attributed within the customer ledger. Use *dynamic* expiring VAs only for
-  genuine one-off buyers who will never return.
+- **Scope one static VA per invoice** — `accountRef` = the invoice ref, so money landing in that NUBAN can
+  only mean that one invoice → matching is automatic, with nothing typed by hand. Trade-off: the
+  live-account count scales with **invoice volume**, not the customer base, so the production cap [VA-1] is
+  the constraint that matters. Per-*customer* views are a dashboard grouping over the ledger — **not** a
+  reused account number; reusing one number across a customer's open invoices would re-introduce the
+  "which invoice?" ambiguity the product exists to remove.
 - **Lifecycle management** — static VAs are permanent and do **not** auto-recycle. Reclaim churned
   customers with **Suspend** (`PUT /v1/accounts/suspend/{accountId}`) / **Expire**, and audit the live set
   with **Filter/list** (`virtual-accounts/*`). Only suspend/expire **after** the customer's balance is
@@ -312,7 +334,7 @@ Rationale traced from the Nomba reference (`NOMBA-API-REFERENCE.md` §Virtual Ac
 - **[VA-1] Real per-merchant static-VA ceiling.** The verified reference documents **no production VA cap**
   ("No VA cap in production"); the only ever-documented cap was the sandbox 2-VA limit (now removed for
   hackathon accounts). An anecdotal "~30" limit has been raised but is **not in the reference** — do **not**
-  design around it. Confirm the true production ceiling with Nomba before relying on per-customer static VAs
+  design around it. Confirm the true production ceiling with Nomba before relying on per-invoice static VAs
   at scale.
 - **[VA-2] Expired/suspended-VA inbound behavior.** The reference does not state what happens to a transfer
   sent to an *expired* or *suspended* static VA — the payer's bank may reverse it, or the transfer may fail
@@ -426,7 +448,7 @@ requery replay-safety · audit-grade CSV export · anomaly/fraud flags · paymen
   timeline + running total; no separate build needed.
 
 ### Genuinely open (owner actions, not code the loop should write)
-- Swap file store → Postgres before a **serverless** deploy (fine as-is on a single instance/Render).
+- ~~Swap file store → Postgres before a **serverless** deploy~~ **RESOLVED 2026-07-06 — migrated to a transactional MongoDB store (`lib/db.ts`, `lib/store.ts`); the file-backed limitation no longer exists.**
 - Set a real `NOMBA_WEBHOOK_SECRET`, tunnel `/api/webhook`, submit Nomba's webhook form.
 - Set `APP_PASSWORD` for any hosted/public deployment.
 

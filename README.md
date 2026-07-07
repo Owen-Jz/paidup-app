@@ -17,8 +17,6 @@ npm run dev                         # http://localhost:3100  (start at / and cli
 - **/get-started** — Onboarding: business → connect Nomba → first invoice → an "arming the engine" processing sequence → dashboard.
 - **/app** — Live collections feed (the demo "wow": watch money land + auto-reconcile).
 - **/app/invoices** — Invoice workspace: KPI strip + filterable table, per-invoice virtual account, New Invoice.
-- **⚡ Simulate payment** panel (both app pages) drives the demo without a real bank transfer.
-
 📹 **Recording the demo video?** Follow **DEMO.md** — a timed 2–3 min script mapped to the judging rubric.
 
 ## Design
@@ -38,6 +36,13 @@ app/
     layout.tsx          App chrome (header + nav)
     page.tsx            Live feed
     invoices/page.tsx   Invoice workspace (statement drawer, quarantine queue, flags)
+    withdraw/page.tsx   Payout to any Nigerian bank (write-ahead reserve, bank-confirmed recipient name)
+    settings/page.tsx   Rename workspace, change password, clear/delete account
+    reports/            Printable PDF reports — full ledger (reports/ledger) + per-invoice audit (reports/audit)
+  pay/[token]/          Customer-facing pay page (QR / VA details)
+    receipt/page.tsx    Printable payer receipt + verification QR
+    invoice/page.tsx    Payer invoice PDF
+    verify/page.tsx     Public anti-fake-alert payment verification
   api/
     invoices/route.ts   POST create (provisions VA) · GET list
     webhook/route.ts    Nomba webhook: verify HMAC -> dedupe -> match -> reconcile (payment_success + payment_reversal)
@@ -49,6 +54,10 @@ app/
     resolve/route.ts    AI unmatched-payment resolver (on-demand, MiniMax) -> grounded suggestion
     explain/route.ts    AI anomaly explanations (on-demand, MiniMax) -> per-flag recommended action
     summary/route.ts    AI reconciliation brief (on-demand, MiniMax) over the computed snapshot
+    withdraw/route.ts   payout-to-bank with write-ahead reserve + idempotent wd_ refs
+    account/route.ts    workspace settings (rename, password change, account deletion)
+    audit/route.ts      tamper-evident chain audit (SHA-256 hashEntry/verifyChain)
+    flags/route.ts      anomaly-flag manual dismiss
     login/route.ts      email + password (scrypt) -> signed session cookie
     signup/route.ts     business + email + password -> tenant + owner user + session
     logout/route.ts     clears the session cookie
@@ -61,12 +70,16 @@ lib/
   summary.ts            snapshot() + templatedSummary() (fallback) + aiSummary() (MiniMax brief)
   ai.ts                 MiniMax client — returns null on any failure so callers fall back (the AI seam)
   export.ts             RFC-4180 CSV builders (ledger + statement)
+  db.ts                 MongoDB connection + collection/index initialization
+  audit.ts              tamper-evident chain — hashEntry / verifyChain / GENESIS / verifyAudit()
+  receipt.ts            receiptNumber / receiptHash / paymentSummary (pure, tested)
+  qr.ts                 QR code SVG generator (wraps the qrcode dep)
   auth.ts               stateless HMAC-signed session tokens (edge-safe Web Crypto; SESSION_SECRET)
   password.ts           scrypt password hashing (per-user salt, timingSafeEqual)
   session.ts            node-side session resolution (tokenVersion revocation check)
   nomba.ts              token (cached) · createVirtualAccount · getVirtualAccountTransactions · transferToBank
-  store.ts              durable file-backed multi-tenant ledger (SWAP for Postgres before serverless deploy)
-  types.ts / format.ts
+  store.ts              MongoDB-backed MULTI-TENANT ledger — transactional money path (all-or-nothing), unique-index atomic dedupe (lib/db.ts = connection/indexes)
+  types.ts / format.ts / ratelimit.ts / validate.ts / anomaly.ts
 ```
 
 ## AI moat (MiniMax, fully optional)
@@ -84,7 +97,9 @@ engine and **a missing/rate-limited key never breaks the demo**. AI calls are on
 poll), so they don't re-bill. Set `MINIMAX_API_KEY` to enable; leave blank to run fully deterministic. The
 AI seam is injectable, so the resolver/anomaly/summary fallbacks are unit-tested offline (no network/key).
 
-## What's wired & verified  (`npm test` → 105 unit tests; `npm run build` green)
+**What's new (shipped since initial build):** withdrawals to bank · account settings · payer receipt + verification · WhatsApp sharing · due-dates & reminders · mobile-responsive UI · MongoDB transactional ledger.
+
+## What's wired & verified  (`npm test` → 136 unit tests; `npm run build` green)
 - ✅ **Reconcile engine:** exact→paid, under→partial (accumulates), over→overpaid (refundable surplus),
   **payment_reversal→un-reconcile** (clawback re-derives status), kobo-tolerant, **rejects NaN/invalid**
   (no ledger corruption). Pure + unit-tested incl. the HMAC docs vector.
@@ -108,21 +123,27 @@ AI seam is injectable, so the resolver/anomaly/summary fallbacks are unit-tested
   session cookies (httpOnly, 8h, revocable via tokenVersion), fail-closed middleware, and **server-side
   tenant isolation on every route** (webhook never gated — it authenticates with its own HMAC).
   Demo workspace: `demo@paidup.app` / `LedgerDemo2026` (see DEMO.md); requires `SESSION_SECRET` in env.
-- ✅ Durable file-backed ledger (`.data/ledger.json`) so restarts don't replay-double-credit; `/api/simulate` gated out of production.
-- ✅ Live token issue + VA create/list + requery against `sandbox.nomba.com` (refund call-path exercised in sandbox; transfer/refund **settlement is production-only**).
+- ✅ **Full VA lifecycle:** create (`POST /v1/accounts/virtual/{subAccountId}`) → reconcile (webhook + requery)
+  → **expire on invoice deletion** (`DELETE /v1/accounts/virtual/{ref}` — the NUBAN dies with the reference;
+  only clean, never-paid invoices are deletable). Plus a **sub-account balance tie-out**
+  (`GET /v1/accounts/{subAccountId}/balance`, operator view): the settled cash at Nomba shown next to the
+  ledger's collected total — where every VA credit sweeps.
+- ✅ Durable MongoDB ledger — payment/reversal/withdrawal each mutate invoice + feed event + dedupe claim + audit entry atomically in one transaction. `/api/simulate` gated out of production.
+- ✅ **Proven with real money on production (2026-07-04):** real bank transfers from OPay → live Nomba VAs →
+  real `payment_success` webhooks (HMAC verified) → auto-reconciled **paid / partial / overpaid**, and a real
+  **₦100 surplus refund settled** via `/v2/transfers/bank`. Amounts are Naira; balance tie-out matches to the naira.
 
 See **SECURITY.md** for the full security & reliability note (the submission requirement).
 
-> **Demo note:** run with `npm run dev` so the live-reconcile demo + simulate panel work. In production
-> (`npm start`) the webhook fails closed and simulate is disabled unless you set `ALLOW_UNSIGNED_WEBHOOKS=1`
-> and `DEMO_MODE=1` (or a real `NOMBA_WEBHOOK_SECRET`). See `.env.local.example`. Audit + backlog: `GAPS.md`.
+> **Demo note:** the hosted demo runs in production mode against the **live Nomba API** — pay a real invoice
+> by bank transfer and watch it reconcile. In production (`npm start`) the webhook fails closed without a
+> real `NOMBA_WEBHOOK_SECRET`. See `.env.local.example`. Audit + backlog: `GAPS.md`.
 
 ## Known limits / next steps
-- **File-backed store** (`lib/store.ts`, `.data/ledger.json`) survives restarts on a single instance (Render)
-  but not serverless (each invocation is isolated). Swap for Postgres/Redis before a Vercel deploy.
-- **VA creation defaults to a real sandbox VA with a mock fallback.** The old 2-VA sandbox cap was
-  **removed for hackathon accounts (2026-06-30)**, so you can create VAs freely; each sandbox VA still
-  accepts ≤ ₦150. The mock fallback stays as the safety net so the demo never depends on a live API call.
+- Store is MongoDB (transactional, multi-instance-safe). VA creation is mocked by default; pass `useNomba:true` for a real sandbox VA. Money is naira floats with round-2 + kobo-tolerance guards (integer-kobo refactor deferred).
+- **VA creation defaults to a real Nomba VA with a mock fallback.** On production creds the minted NUBAN is
+  reachable from any Nigerian bank app; the mock fallback stays as the safety net so the demo never depends
+  on a live API call. (Sandbox VAs are not reachable from real banks — production is the proving ground.)
 - **Webhook secret** — set `NOMBA_WEBHOOK_SECRET` to the dashboard signature key to enforce verification
   (blank = dev-open; **production fails closed**). Then expose the app with a tunnel (cloudflared/ngrok) and
   submit the public `/api/webhook` URL + sub-account ID to Nomba's form.
