@@ -31,3 +31,4 @@ next-env.d.ts
 /scripts/demo-*.html
 /scripts/qa-*.mjs
 /scripts/repro-*.mjs
+/shots
