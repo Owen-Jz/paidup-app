@@ -6,6 +6,18 @@ Hackathon MVP (Cresiolabs · Nomba x DevCareer 2026). **Focus: Virtual Accounts 
 > `payment_success` webhook → matched by `aliasAccountReference` → reconcile engine marks it
 > **paid / partial / overpaid / unmatched**, live. Zero manual matching.
 
+## 🔍 For reviewers — start here
+**Live app:** **https://paidup.site** — production hosting, real Nomba **production** credentials.
+
+**Demo workspace (no signup needed):**
+| Email | Password |
+| --- | --- |
+| `demo@paidup.app` | `LedgerDemo2026` |
+
+On the site, click **Sign in → "Use the demo workspace →"** to jump straight into a seeded workspace.
+
+**Where to look:** **/app** — the live collections feed (watch a transfer land and auto-reconcile); **/app/invoices** — per-invoice virtual accounts, the statement drawer, refunds, and the unmatched-payment queue. The timed 5-minute walkthrough is in **DEMO.md**; the reconcile + HMAC core is unit-tested (`npm test`).
+
 ## Run
 ```bash
 cd paidup
