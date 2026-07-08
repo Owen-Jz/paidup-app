@@ -16,7 +16,7 @@ import path from "node:path";
 
 const DRY = process.argv.includes("--dry");
 const BASE = DRY ? "http://localhost:3100" : "https://paidup.site";
-const WEBHOOK = DRY ? "http://localhost:3100/api/webhook" : "https://rimose-rayan-better.ngrok-free.dev/api/webhook";
+const WEBHOOK = DRY ? "http://localhost:3100/api/webhook" : (process.env.WEBHOOK_URL || "http://localhost:3100/api/webhook");
 const VO_DIR = path.join(process.cwd(), "voice-notes", "demo-vo");
 const OUT_DIR = path.join(VO_DIR, "take");
 const EMAIL = "demo@paidup.app";

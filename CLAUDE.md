@@ -78,19 +78,12 @@ lib/
 - **Design = "The Ledger"** (editorial financial print). All tokens are CSS variables in `app/globals.css`.
   Fraunces (display) + Hanken Grotesk (body) + JetBrains Mono (figures). Don't introduce the generic dark dashboard look.
 
-## Companion resources — `C:\Users\owen\Downloads\paidup-nomba`
-This app is the `paidup/` MVP from that umbrella directory. When you need Nomba integration details or
-the end-to-end proof harness, read these (they are the source of truth, not memory or training data):
-
-- **`C:\Users\owen\Downloads\paidup-nomba\NOMBA-API-REFERENCE.md`** — the curated, verified Nomba API
-  reference used to build the integration (auth, virtual accounts, webhooks/HMAC, `/v2/transfers/bank`,
-  environments). **Consult this before changing anything in `lib/nomba.ts` or `lib/verify.ts`.**
-  Key corrections it records: webhook signature is the 9-field colon-joined HMAC (not raw body); transfers
-  are `/v2`; `expectedAmount` on a VA makes the sender's bank reject mismatches (so leave it unset and
-  track expected amounts in our own ledger).
-- **`C:\Users\owen\Downloads\paidup-nomba\smoke-test\smoke-test.mjs`** — zero-dependency Node script that
-  proves the loop (reconcile + HMAC offline; live token → create VA → fetch when creds are set).
-- **`C:\Users\owen\Downloads\paidup-nomba\README.md`** — the umbrella README describing the whole repo layout.
+## Nomba integration notes (source of truth for `lib/nomba.ts` / `lib/verify.ts`)
+Key facts the integration is built on — consult before changing `lib/nomba.ts` or `lib/verify.ts`:
+- Webhook signature is the **9-field colon-joined HMAC-SHA256** (not the raw body) — matches the Nomba docs vector.
+- Transfers are on **`/v2`** (`/v2/transfers/bank`).
+- Setting `expectedAmount` on a VA makes the sender's bank reject mismatched transfers — so leave it unset
+  and track expected amounts in our own ledger.
 
 ## In-repo docs
 - `README.md` — full run/architecture/what's-wired writeup.
@@ -103,14 +96,6 @@ the end-to-end proof harness, read these (they are the source of truth, not memo
 - VA creation is mocked by default (keeps the demo independent of a live API call — the old sandbox 2-VA cap is now removed for hackathon accounts); pass `useNomba:true` on New Invoice to create a real sandbox VA.
 - Money is held as Naira floats with round-2 + kobo-tolerance guards at every arithmetic point (integer-kobo refactor deferred — see GAPS.md).
 
-## Hackathon submission & demo ops (as of 2026-07-03)
-- **Submission repo:** `Owen-Jz/paidup-app` (PRIVATE). The old `Owen-Jz/paidup` is **disabled by GitHub** — do not use it. Private-repo review: keep private, add GitHub **`favour-chibueze`** (DevCareer reviewer) as a read collaborator, submit the URL. Full state in memory `hackathon-submission-status.md`.
-- **Run the demo (both must stay up):**
-  ```bash
-  ngrok http --url=rimose-rayan-better.ngrok-free.dev 3100   # permanent tunnel
-  npm run dev                                                # :3100
-  ```
-  Submitted webhook URL: `https://rimose-rayan-better.ngrok-free.dev/api/webhook`. `.env.local` needs `NOMBA_WEBHOOK_SECRET=<hackathon signing key>` (was empty → prod webhook 503s without it).
+## Local dev notes
 - **Prove the loop locally:** `NOMBA_WEBHOOK_SECRET=<key> node scripts/send-signed-webhook.mjs <url> INV-1044 75500` → real 9-field HMAC → reconcile.
-- **`.next` cache collisions:** running `npm run build` while `npm run dev` is up corrupts the dev `.next` (symptoms: `/` 500s, `Cannot find module './948.js'`, `e[o] is not a function`). Fix: kill dev, `rm -rf .next`, restart `npm run dev`. Don't build against a live dev server.
-- **Figma capture** (landing/dashboard → Figma) is blocked by the app CSP; to capture, temporarily allow `mcp.figma.com` in `lib/security-headers.mjs` (`script-src` + `connect-src`) and add the capture `<script>` to `app/layout.tsx`, then REVERT both.
+- **`.next` cache collisions:** running `npm run build` while `npm run dev` is up corrupts the dev `.next` (symptoms: `/` 500s, `Cannot find module './948.js'`). Fix: kill dev, `rm -rf .next`, restart `npm run dev`. Don't build against a live dev server.

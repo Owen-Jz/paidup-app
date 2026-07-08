@@ -12,10 +12,8 @@ the real webhook tunnel. No local setup needed.
 
 - **Judge/demo login: `demo@paidup.app` / `LedgerDemo2026`** (also in README.md — put it in the
   submission form too, per the organizers).
-- The webhook endpoint submitted to Nomba (`https://rimose-rayan-better.ngrok-free.dev/api/webhook`)
-  is served from the same host — a real bank transfer on camera reconciles live. **Both systemd
-  services (`paidup`, `ngrok-paidup`) must be active** — check `systemctl is-active paidup ngrok-paidup`
-  on the VPS before recording.
+- The webhook endpoint submitted to Nomba is served from the same host — a real bank transfer on
+  camera reconciles live. Make sure the app and its webhook tunnel are both up before recording.
 - Have ready:
   1. A browser signed in to the **demo workspace** with two tabs: `/` (the story) and `/app` (live feed).
   2. A **phone with a real banking app** (OPay/GTBank/any) for the money shot — sandbox VAs are NOT
@@ -23,7 +21,7 @@ the real webhook tunnel. No local setup needed.
   3. A terminal with the signed-webhook script ready (fallback + range demo):
      ```bash
      NOMBA_WEBHOOK_SECRET=<key> node scripts/send-signed-webhook.mjs \
-       https://rimose-rayan-better.ngrok-free.dev/api/webhook <INV-ref> <amount>
+       <your-webhook-url> <INV-ref> <amount>
      ```
 - `MINIMAX_API_KEY` is set on the host, so the **✨ AI LIVE** pill shows and AI features are real.
   If it were absent everything still works — deterministic fallbacks, pill reads **AI OFF · RULES**.
@@ -114,11 +112,9 @@ Point at the sync note — **"✓ last synced … · ₦XXX settled at Nomba"**:
 > degrades gracefully so a missing key never breaks the demo.
 
 ## If something misbehaves on the day
-- Feed not updating → the dashboard polls `/api/events` every 2s; check `systemctl status paidup` on
-  the VPS (`journalctl -u paidup -n 50` for logs).
-- Webhook not landing → `systemctl status ngrok-paidup`; the submitted URL is permanent and must stay
+- Feed not updating → the dashboard polls `/api/events` every 2s; check the app service and its logs on the host.
+- Webhook not landing → check the webhook tunnel is up; the submitted URL is permanent and must stay
   up through judging (webhook URLs are frozen after the deadline).
 - AI button shows "AI not configured" → `MINIMAX_API_KEY` isn't set on the host; the deterministic
   fallback still works.
-- Everything re-verifiable in one line: `npm test` (147) · `npm run build` ·
-  `node ../smoke-test/smoke-test.mjs`.
+- Everything re-verifiable in one line: `npm test` · `npm run build`.
