@@ -27,3 +27,7 @@ next-env.d.ts
 /voice-notes
 /SUBMISSION-FORM-ANSWERS.md
 /DEMO-RUNSHEET.md
+/scripts/demo-*.mjs
+/scripts/demo-*.html
+/scripts/qa-*.mjs
+/scripts/repro-*.mjs
