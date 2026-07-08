@@ -32,3 +32,4 @@ next-env.d.ts
 /scripts/qa-*.mjs
 /scripts/repro-*.mjs
 /shots
+/.superpowers

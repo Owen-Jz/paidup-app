@@ -20,7 +20,7 @@ Run a single unit test file: `node --test lib/reconcile.test.ts`.
 
 ## Stack
 Next.js 14.2 (App Router) · React 18 · TypeScript 5.5 · GSAP (landing motion) · qrcode (pay links).
-No DB driver — the ledger is a file-backed store (`lib/store.ts` → `.data/ledger.json`).
+MongoDB-backed ledger — `lib/store.ts` (transactional money path) + `lib/db.ts` (connection + indexes); multi-tenant and multi-instance-safe.
 
 ## Architecture (where things live)
 ```
@@ -91,9 +91,8 @@ Key facts the integration is built on — consult before changing `lib/nomba.ts`
 - `DEMO.md` — timed 2–3 min demo script mapped to the judging rubric.
 - `GAPS.md` — rubric audit + hardening-loop changelog (and deliberately deferred items).
 
-## Known limits
-- File-backed store survives restarts on a single instance, **not serverless** — swap for Postgres/Redis before a Vercel deploy.
-- VA creation is mocked by default (keeps the demo independent of a live API call — the old sandbox 2-VA cap is now removed for hackathon accounts); pass `useNomba:true` on New Invoice to create a real sandbox VA.
+## Behaviour & known limits
+- **VA creation defaults to a REAL Nomba VA** (`useNomba` defaults true in `app/api/invoices/route.ts`) with a graceful mock-NUBAN fallback if Nomba is unconfigured or the call fails — pass `useNomba:false` to force a mock. On production creds the minted NUBAN is reachable from any Nigerian bank app.
 - Money is held as Naira floats with round-2 + kobo-tolerance guards at every arithmetic point (integer-kobo refactor deferred — see GAPS.md).
 
 ## Local dev notes

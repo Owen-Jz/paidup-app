@@ -79,7 +79,7 @@ integrity** — both are treated as money-correctness problems, not afterthought
   post-hackathon hardening step.
 
 ## Verification
-`npm test` → 136 unit tests (reconcile incl. reversal, HMAC/signature vector, session-token sign/verify/
+`npm test` → 147 unit tests (reconcile incl. reversal, HMAC/signature vector, session-token sign/verify/
 tamper/expiry, scrypt password hashing, tenant isolation incl. cross-tenant refusal, resolver + AI-fallback,
 export, anomaly + AI-explain, summary + AI-fallback, plus ai, validate, store, ratelimit, security-headers,
 audit, receipt).

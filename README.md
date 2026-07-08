@@ -111,7 +111,7 @@ AI seam is injectable, so the resolver/anomaly/summary fallbacks are unit-tested
 
 **What's new (shipped since initial build):** withdrawals to bank · account settings · payer receipt + verification · WhatsApp sharing · due-dates & reminders · mobile-responsive UI · MongoDB transactional ledger.
 
-## What's wired & verified  (`npm test` → 136 unit tests; `npm run build` green)
+## What's wired & verified  (`npm test` → 147 unit tests; `npm run build` green)
 - ✅ **Reconcile engine:** exact→paid, under→partial (accumulates), over→overpaid (refundable surplus),
   **payment_reversal→un-reconcile** (clawback re-derives status), kobo-tolerant, **rejects NaN/invalid**
   (no ledger corruption). Pure + unit-tested incl. the HMAC docs vector.
@@ -152,7 +152,7 @@ See **SECURITY.md** for the full security & reliability note (the submission req
 > real `NOMBA_WEBHOOK_SECRET`. See `.env.local.example`. Audit + backlog: `GAPS.md`.
 
 ## Known limits / next steps
-- Store is MongoDB (transactional, multi-instance-safe). VA creation is mocked by default; pass `useNomba:true` for a real sandbox VA. Money is naira floats with round-2 + kobo-tolerance guards (integer-kobo refactor deferred).
+- Store is MongoDB (transactional, multi-instance-safe). Money is naira floats with round-2 + kobo-tolerance guards (integer-kobo refactor deferred).
 - **VA creation defaults to a real Nomba VA with a mock fallback.** On production creds the minted NUBAN is
   reachable from any Nigerian bank app; the mock fallback stays as the safety net so the demo never depends
   on a live API call. (Sandbox VAs are not reachable from real banks — production is the proving ground.)
